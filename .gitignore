@@ -1,0 +1,24 @@
+# Entorno virtual
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Base de datos local (se crea con `flask init-db`)
+instance/
+
+# Variables de entorno y secretos
+.env
+.env.*
+
+# Editores e IDE
+.vs/
+.vscode/
+.idea/
+.claude/
+
+# Sistema
+.DS_Store
+Thumbs.db
