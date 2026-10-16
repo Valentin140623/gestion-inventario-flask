@@ -78,7 +78,7 @@ def registrar_movimiento(producto, tipo, cantidad, usuario, motivo=None, documen
     # ------------------------------------------------------------------
     # REGLA DE NEGOCIO: el stock nunca puede ser negativo.
     #
-    # Es una imposibilidad física: no se pueden tener -3 portátiles en una
+    # Es una imposibilidad física: no se pueden tener -3 botellas en una
     # estantería. Si lo permitiéramos, todas las métricas basadas en stock
     # (valor de inventario, días hasta agotarse, rotación) darían resultados
     # sin sentido.
