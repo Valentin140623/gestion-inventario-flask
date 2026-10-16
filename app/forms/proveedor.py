@@ -30,7 +30,7 @@ class FormularioProveedor(FlaskForm):
     nombre = StringField(
         "Nombre / Razón social",
         validators=[DataRequired(message="El nombre es obligatorio."), Length(min=2, max=150)],
-        render_kw={"placeholder": "Distribuciones Tecnológicas S.A."},
+        render_kw={"placeholder": "Distribuciones Hostelería S.L."},
     )
 
     cif = StringField(
@@ -54,7 +54,7 @@ class FormularioProveedor(FlaskForm):
     telefono = StringField(
         "Teléfono",
         validators=[Optional(), Length(max=20)],
-        render_kw={"placeholder": "912 345 678"},
+        render_kw={"placeholder": "600 000 000"},
     )
 
     direccion = StringField(

@@ -42,7 +42,7 @@ class FormularioProducto(FlaskForm):
             DataRequired(message="La referencia es obligatoria."),
             Length(max=30),
         ],
-        render_kw={"placeholder": "POR-001"},
+        render_kw={"placeholder": "ENT-010"},
     )
 
     nombre = StringField(
@@ -51,13 +51,13 @@ class FormularioProducto(FlaskForm):
             DataRequired(message="El nombre es obligatorio."),
             Length(min=2, max=150),
         ],
-        render_kw={"placeholder": "Portátil Pro 15\" 16GB"},
+        render_kw={"placeholder": "Croquetas de bacalao (6 uds.)"},
     )
 
     descripcion = TextAreaField(
         "Descripción",
         validators=[Optional(), Length(max=1000)],
-        render_kw={"placeholder": "Características, especificaciones..."},
+        render_kw={"placeholder": "Ingredientes, alérgenos, presentación..."},
     )
 
     # SelectField muestra un desplegable. coerce=int convierte el valor
@@ -152,7 +152,7 @@ class FormularioProducto(FlaskForm):
     ubicacion_almacen = StringField(
         "Ubicación en almacén",
         validators=[Optional(), Length(max=50)],
-        render_kw={"placeholder": "Pasillo A · Estante 3"},
+        render_kw={"placeholder": "Cámara 1 · Balda 2"},
     )
 
     activo = BooleanField("Producto activo (visible en el catálogo)", default=True)
@@ -279,13 +279,13 @@ class FormularioCategoria(FlaskForm):
     nombre = StringField(
         "Nombre de la categoría",
         validators=[DataRequired(message="El nombre es obligatorio."), Length(min=2, max=80)],
-        render_kw={"placeholder": "Portátiles"},
+        render_kw={"placeholder": "Arroces"},
     )
 
     descripcion = StringField(
         "Descripción",
         validators=[Optional(), Length(max=255)],
-        render_kw={"placeholder": "Equipos portátiles y ultrabooks"},
+        render_kw={"placeholder": "Paellas y arroces melosos"},
     )
 
     submit = SubmitField("Guardar categoría")
