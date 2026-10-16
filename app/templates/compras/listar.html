@@ -1,0 +1,105 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import etiqueta %}
+
+{% set ver_finanzas = current_user.tiene_permiso('analisis.financiero') %}
+
+{% block subtitulo %}
+    <p class="subtitulo">{{ paginacion.total }} compra(s)</p>
+{% endblock %}
+
+{% block acciones %}
+    {% if current_user.tiene_permiso('compras.registrar') %}
+        <a href="{{ url_for('compras.crear') }}" class="boton boton-principal">+ Nueva compra</a>
+    {% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+
+<form method="get" class="filtros">
+    <select name="proveedor" class="entrada filtro-busqueda">
+        <option value="0">Todos los proveedores</option>
+        {% for p in proveedores %}
+            <option value="{{ p.id }}" {% if filtros.proveedor == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="boton boton-principal">Filtrar</button>
+    <a href="{{ url_for('compras.listar') }}" class="boton">Limpiar</a>
+</form>
+
+{% if ver_finanzas %}
+<div class="rejilla">
+    <div class="indicador">
+        <span class="indicador-etiqueta">Pedidos</span>
+        <span class="indicador-valor">{{ paginacion.total }}</span>
+    </div>
+    <div class="indicador">
+        <span class="indicador-etiqueta">Importe total comprado</span>
+        <span class="indicador-valor">{{ total_comprado|euros }}</span>
+    </div>
+</div>
+{% endif %}
+
+<div class="tarjeta">
+    {% if compras %}
+    <div class="tabla-marco">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Pedido</th>
+                    <th>Fecha</th>
+                    <th>Proveedor</th>
+                    <th class="num">Artículos</th>
+                    {% if ver_finanzas %}<th class="num">Importe</th>{% endif %}
+                    <th class="num">Entrega</th>
+                    <th class="acciones"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in compras %}
+                <tr>
+                    <td><code class="referencia">{{ c.numero }}</code></td>
+                    <td>{{ c.fecha|fecha }}</td>
+                    <td>
+                        <a href="{{ url_for('proveedores.detalle', proveedor_id=c.proveedor.id) }}">
+                            {{ c.proveedor.nombre }}
+                        </a>
+                    </td>
+                    <td class="num">{{ c.num_articulos }}</td>
+                    {% if ver_finanzas %}<td class="num"><strong>{{ c.total|euros }}</strong></td>{% endif %}
+                    <td class="num">
+                        {% if c.dias_entrega_real is not none %}
+                            {% if c.dias_entrega_real <= c.proveedor.plazo_entrega_dias %}
+                                {{ etiqueta(c.dias_entrega_real ~ ' d', 'exito') }}
+                            {% else %}
+                                {{ etiqueta(c.dias_entrega_real ~ ' d', 'peligro') }}
+                            {% endif %}
+                        {% else %}{{ etiqueta('Pendiente', 'aviso') }}{% endif %}
+                    </td>
+                    <td class="acciones">
+                        <a href="{{ url_for('compras.detalle', compra_id=c.id) }}" class="boton boton-pequeno">Ver</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if paginacion.pages > 1 %}
+    <div class="paginacion">
+        {% for numero in paginacion.iter_pages() %}
+            {% if numero %}
+                <a href="{{ url_for('compras.listar', pagina=numero, proveedor=filtros.proveedor) }}"
+                   class="pagina {% if numero == paginacion.page %}activa{% endif %}">{{ numero }}</a>
+            {% else %}<span class="pagina-salto">…</span>{% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="vacio">
+        <span class="vacio-icono">🚚</span>
+        <p><strong>No hay compras registradas.</strong></p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

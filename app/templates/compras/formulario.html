@@ -1,0 +1,160 @@
+{% extends "base_app.html" %}
+
+{% block acciones %}
+    <a href="{{ url_for('compras.listar') }}" class="boton">Volver</a>
+{% endblock %}
+
+{% block cuerpo %}
+<div class="tarjeta tarjeta-formulario">
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <h3>Datos del pedido</h3>
+        <div class="campo">
+            <label for="proveedor_id">Proveedor</label>
+            <select id="proveedor_id" name="proveedor_id" class="entrada" required onchange="actualizar()">
+                <option value="">— Selecciona un proveedor —</option>
+                {% for p in proveedores %}
+                    <option value="{{ p.id }}">{{ p.nombre }} · {{ p.condiciones_pago or 'sin condiciones' }}</option>
+                {% endfor %}
+            </select>
+            <span class="campo-ayuda">Al elegirlo, los precios se rellenan con su tarifa.</span>
+        </div>
+
+        <div class="campo">
+            <label for="observaciones">Observaciones</label>
+            <input type="text" id="observaciones" name="observaciones" class="entrada" placeholder="Opcional">
+        </div>
+
+        <div class="campo-linea">
+            <input type="checkbox" id="recibido" name="recibido" value="si" checked>
+            <label for="recibido">La mercancía ya ha llegado (registra la fecha de recepción)</label>
+        </div>
+
+        <h3>Productos</h3>
+        <p class="texto-tenue">
+            Para los productos que se venden por ración (barriles, botellas...), indica cuántos
+            <strong>envases</strong> compras y el precio de <strong>cada envase</strong>: el
+            sistema convertirá solo las raciones que salen y el coste por ración.
+        </p>
+        <table class="tabla tabla-lineas">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th class="num">Cantidad</th>
+                    <th class="num">Precio unit.</th>
+                    <th class="num">Subtotal</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="lineas"></tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="3">TOTAL</th>
+                    <th class="num" id="total">0,00 €</th>
+                    <th></th>
+                </tr>
+            </tfoot>
+        </table>
+
+        <button type="button" class="boton" onclick="anadirLinea()">+ Añadir producto</button>
+
+        <div class="form-acciones">
+            <button type="submit" class="boton boton-principal">Registrar compra</button>
+            <a href="{{ url_for('compras.listar') }}" class="boton">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PRODUCTOS = [
+{% for p in productos %}
+    {
+        id: {{ p.id }}, nombre: {{ p.nombre|tojson }}, coste: {{ p.coste_adquisicion }},
+        porRacion: {{ p.se_vende_por_racion|tojson }},
+        nombreRacion: {{ (p.nombre_racion or '')|tojson }},
+        racionesPorEnvase: {{ p.raciones_por_envase|tojson if p.raciones_por_envase else 'null' }}
+    },
+{% endfor %}
+];
+const DATOS_PRODUCTO = {};
+for (const p of PRODUCTOS) { DATOS_PRODUCTO[p.id] = p; }
+
+// Precio de cada producto según el proveedor: {proveedor: {producto: precio}}
+const TARIFAS = {{ tarifas|tojson }};
+
+function anadirLinea() {
+    const cuerpo = document.getElementById('lineas');
+    const fila = document.createElement('tr');
+
+    let opciones = '<option value="">— Selecciona un producto —</option>';
+    for (const p of PRODUCTOS) {
+        const etiqueta = p.porRacion ? `${p.nombre} (por envase de ${p.nombreRacion}s)` : p.nombre;
+        opciones += `<option value="${p.id}">${etiqueta}</option>`;
+    }
+
+    fila.innerHTML = `
+        <td>
+            <select name="producto_id" class="entrada" onchange="actualizar()">${opciones}</select>
+            <span class="campo-ayuda info-racion"></span>
+        </td>
+        <td class="num"><input type="number" name="cantidad" class="entrada entrada-mini"
+                               value="1" min="1" oninput="actualizar()"></td>
+        <td class="num"><input type="number" name="precio" class="entrada entrada-mini"
+                               step="0.01" min="0" value="0" oninput="actualizar()"></td>
+        <td class="num subtotal">—</td>
+        <td class="acciones">
+            <button type="button" class="boton boton-pequeno boton-peligro"
+                    onclick="this.closest('tr').remove(); actualizar();">Quitar</button>
+        </td>`;
+    cuerpo.appendChild(fila);
+}
+
+function actualizar() {
+    const proveedor = document.getElementById('proveedor_id').value;
+    let total = 0;
+
+    for (const fila of document.querySelectorAll('#lineas tr')) {
+        const id = fila.querySelector('select').value;
+        const campoCantidad = fila.querySelector('input[name="cantidad"]');
+        const campoPrecio = fila.querySelector('input[name="precio"]');
+        const infoRacion = fila.querySelector('.info-racion');
+
+        // Si el proveedor tiene tarifa para ese producto, la ponemos.
+        // Solo si el usuario no ha escrito ya un precio distinto de cero.
+        if (id && proveedor && TARIFAS[proveedor] && TARIFAS[proveedor][id]
+            && parseFloat(campoPrecio.value) === 0) {
+            campoPrecio.value = TARIFAS[proveedor][id];
+        }
+
+        const subtotal = (parseFloat(campoPrecio.value) || 0) * (parseInt(campoCantidad.value) || 0);
+        total += subtotal;
+        fila.querySelector('.subtotal').textContent = id ? formatear(subtotal) : '—';
+
+        // Aviso de conversión para los productos que se venden por ración:
+        // "2 envases × 100 cañas = 200 cañas a 0,45 € cada una".
+        const datos = DATOS_PRODUCTO[id];
+        if (datos && datos.porRacion && datos.racionesPorEnvase) {
+            const envases = parseInt(campoCantidad.value) || 0;
+            const precioEnvase = parseFloat(campoPrecio.value) || 0;
+            const totalRaciones = Math.round(envases * datos.racionesPorEnvase);
+            const costeRacion = precioEnvase / datos.racionesPorEnvase;
+            infoRacion.textContent =
+                `= ${totalRaciones} ${datos.nombreRacion}(s) a ${formatear(costeRacion)} cada una`;
+        } else if (infoRacion) {
+            infoRacion.textContent = '';
+        }
+    }
+
+    document.getElementById('total').textContent = formatear(total);
+}
+
+function formatear(n) {
+    return n.toFixed(2).replace('.', ',') + ' €';
+}
+
+anadirLinea();
+</script>
+{% endblock %}

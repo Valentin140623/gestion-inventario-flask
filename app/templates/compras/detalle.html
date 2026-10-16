@@ -1,0 +1,104 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import etiqueta %}
+
+{% set ver_finanzas = current_user.tiene_permiso('analisis.financiero') %}
+
+{% block encabezado %}Compra {{ compra.numero }}{% endblock %}
+
+{% block subtitulo %}
+    <p class="subtitulo">
+        {{ compra.fecha|fecha }} ·
+        <a href="{{ url_for('proveedores.detalle', proveedor_id=compra.proveedor.id) }}">{{ compra.proveedor.nombre }}</a>
+    </p>
+{% endblock %}
+
+{% block acciones %}
+    <a href="{{ url_for('compras.listar') }}" class="boton">Volver</a>
+    {% if not compra.fecha_recepcion and current_user.tiene_permiso('compras.registrar') %}
+        <form method="POST" action="{{ url_for('compras.recibir', compra_id=compra.id) }}" class="form-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="boton boton-principal">Marcar como recibida</button>
+        </form>
+    {% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+
+<div class="rejilla">
+    {% if ver_finanzas %}
+    <div class="indicador">
+        <span class="indicador-etiqueta">Importe total</span>
+        <span class="indicador-valor">{{ compra.total|euros }}</span>
+        <span class="indicador-pie">{{ compra.num_articulos }} artículo(s)</span>
+    </div>
+    {% endif %}
+    <div class="indicador">
+        <span class="indicador-etiqueta">Fecha del pedido</span>
+        <span class="indicador-valor indicador-texto">{{ compra.fecha|fecha }}</span>
+        <span class="indicador-pie">registrado por {{ compra.usuario.nombre }}</span>
+    </div>
+    <div class="indicador">
+        <span class="indicador-etiqueta">Recepción</span>
+        <span class="indicador-valor indicador-texto">
+            {% if compra.fecha_recepcion %}{{ compra.fecha_recepcion|fecha }}{% else %}Pendiente{% endif %}
+        </span>
+        <span class="indicador-pie">
+            {% if compra.dias_entrega_real is not none %}
+                {{ compra.dias_entrega_real }} días (comprometido: {{ compra.proveedor.plazo_entrega_dias }})
+            {% else %}sin recibir todavía{% endif %}
+        </span>
+    </div>
+    <div class="indicador">
+        <span class="indicador-etiqueta">Condiciones de pago</span>
+        <span class="indicador-valor indicador-texto">{{ compra.proveedor.condiciones_pago or '—' }}</span>
+    </div>
+</div>
+
+<div class="tarjeta">
+    <h2>Líneas del pedido</h2>
+    <div class="tabla-marco">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Referencia</th>
+                    <th>Producto</th>
+                    <th class="num">Cantidad</th>
+                    {% if ver_finanzas %}
+                        <th class="num">Precio unit.</th>
+                        <th class="num">Subtotal</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in compra.lineas %}
+                <tr>
+                    <td><code class="referencia">{{ l.producto.referencia }}</code></td>
+                    <td>
+                        <a href="{{ url_for('productos.detalle', producto_id=l.producto.id) }}">
+                            {{ l.producto.nombre }}
+                        </a>
+                    </td>
+                    <td class="num">{{ l.cantidad }}</td>
+                    {% if ver_finanzas %}
+                        <td class="num">{{ l.precio_unitario|euros }}</td>
+                        <td class="num"><strong>{{ l.subtotal|euros }}</strong></td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if ver_finanzas %}
+            <tfoot>
+                <tr>
+                    <th colspan="4">TOTAL</th>
+                    <th class="num">{{ compra.total|euros }}</th>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+
+    {% if compra.observaciones %}
+        <p class="texto-tenue nota-pie">{{ compra.observaciones }}</p>
+    {% endif %}
+</div>
+{% endblock %}
