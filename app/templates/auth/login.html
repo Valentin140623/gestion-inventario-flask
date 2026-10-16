@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{# Importamos las macros. "with context" no hace falta aquí porque las macros
+   solo usan lo que se les pasa por argumento. #}
+{% from "_macros.html" import campo, campo_check %}
+
+{% block body_class %}pagina-acceso{% endblock %}
+
+{% block contenido %}
+<div class="acceso-marco">
+    <div class="acceso-tarjeta">
+
+        <div class="acceso-cabecera">
+            <span class="acceso-icono">🍽️</span>
+            <h1>{{ config.NOMBRE_APP }}</h1>
+            <p>Sistema de gestión de sala, cocina y proveedores</p>
+        </div>
+
+        {# novalidate desactiva la validación del navegador para que se vea
+           siempre la del servidor, que es la que de verdad protege la
+           aplicación y da mensajes coherentes. #}
+        <form method="POST" action="{{ url_for('auth.login') }}" novalidate>
+
+            {# ----------------------------------------------------------------
+               ESTA LÍNEA ES OBLIGATORIA EN TODOS LOS FORMULARIOS.
+
+               hidden_tag() inserta un campo oculto con el token CSRF. Flask-WTF
+               comprueba en cada POST que el token recibido coincide con el de
+               la sesión; si falta o no coincide, rechaza la petición.
+
+               Sin él, una web maliciosa podría incluir un formulario oculto
+               apuntando a nuestra aplicación y, aprovechando que el navegador
+               envía las cookies automáticamente, ejecutar acciones en nombre
+               del usuario. Se llama Cross-Site Request Forgery (CSRF).
+               ---------------------------------------------------------------- #}
+            {{ formulario.hidden_tag() }}
+
+            {{ campo(formulario.email) }}
+            {{ campo(formulario.password) }}
+            {{ campo_check(formulario.recordarme) }}
+
+            {{ formulario.submit(class="boton boton-principal boton-ancho") }}
+        </form>
+
+        <p class="acceso-pie">
+            ¿No tienes cuenta?
+            <a href="{{ url_for('auth.registro') }}">Regístrate aquí</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

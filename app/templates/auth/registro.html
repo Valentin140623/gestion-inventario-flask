@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_macros.html" import campo %}
+
+{% block body_class %}pagina-acceso{% endblock %}
+
+{% block contenido %}
+<div class="acceso-marco">
+    <div class="acceso-tarjeta">
+
+        <div class="acceso-cabecera">
+            <span class="acceso-icono">📦</span>
+            <h1>Crear cuenta</h1>
+            <p>Regístrate para acceder al sistema de gestión</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('auth.registro') }}" novalidate>
+            {{ formulario.hidden_tag() }}
+
+            {{ campo(formulario.nombre) }}
+            {{ campo(formulario.email) }}
+            {{ campo(formulario.password, ayuda="Mínimo 8 caracteres, con al menos una letra y un número.") }}
+            {{ campo(formulario.password2) }}
+
+            {# Avisamos del rol asignado por defecto. Es transparencia hacia el
+               usuario, y a la vez deja claro en la interfaz que el rol no se
+               elige: lo asigna el servidor y solo un administrador lo cambia. #}
+            <div class="nota-informativa">
+                Las cuentas nuevas se crean con el rol <strong>Responsable de almacén</strong>.
+                Un administrador puede modificarlo desde la gestión de usuarios.
+            </div>
+
+            {{ formulario.submit(class="boton boton-principal boton-ancho") }}
+        </form>
+
+        <p class="acceso-pie">
+            ¿Ya tienes cuenta?
+            <a href="{{ url_for('auth.login') }}">Inicia sesión</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
