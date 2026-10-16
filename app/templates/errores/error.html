@@ -1,0 +1,24 @@
+{# Plantilla única para todas las páginas de error.
+
+   Usamos una sola plantilla parametrizada (código, título y mensaje llegan
+   desde el manejador de errores) en lugar de un fichero por cada código HTTP:
+   el diseño es idéntico y así no se duplica. #}
+{% extends "base.html" %}
+
+{% block body_class %}pagina-error{% endblock %}
+
+{% block contenido %}
+<div class="error-tarjeta">
+    <div class="error-codigo">{{ codigo }}</div>
+    <h1>{{ titulo_error }}</h1>
+    <p>{{ mensaje }}</p>
+
+    {# current_user.is_authenticated funciona incluso sin sesión: en ese caso
+       Flask-Login proporciona un usuario anónimo cuyo valor es False. #}
+    {% if current_user.is_authenticated %}
+        <a href="{{ url_for('main.dashboard') }}" class="boton boton-principal">Volver al panel</a>
+    {% else %}
+        <a href="{{ url_for('auth.login') }}" class="boton boton-principal">Ir al inicio de sesión</a>
+    {% endif %}
+</div>
+{% endblock %}
