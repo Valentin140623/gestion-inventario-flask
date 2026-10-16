@@ -11,7 +11,7 @@ from ..extensions import db
 
 
 class Categoria(db.Model):
-    """Familia a la que pertenece un producto (Portátiles, Redes, Periféricos...)."""
+    """Familia a la que pertenece un producto (Entrantes, Bebidas, Postres...)."""
 
     __tablename__ = "categorias"
 
