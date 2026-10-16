@@ -1,0 +1,311 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import etiqueta %}
+
+{% set ver_finanzas = current_user.tiene_permiso('analisis.financiero') %}
+
+{% block subtitulo %}
+    <p class="subtitulo">Indicadores del periodo seleccionado</p>
+{% endblock %}
+
+{% block acciones %}
+    {% if current_user.tiene_permiso('informes.generar') %}
+        <a href="{{ url_for('informes.exportar_productos') }}" class="boton">Exportar CSV</a>
+        <a href="{{ url_for('informes.informe_pdf', desde=filtros.desde, hasta=filtros.hasta) }}"
+           class="boton boton-principal">Informe PDF</a>
+    {% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+
+<form method="get" class="filtros">
+    <input type="date" name="desde" class="entrada" value="{{ filtros.desde }}" title="Desde">
+    <input type="date" name="hasta" class="entrada" value="{{ filtros.hasta }}" title="Hasta">
+    <select name="agrupacion" class="entrada">
+        <option value="dia"    {% if filtros.agrupacion == 'dia'    %}selected{% endif %}>Por día</option>
+        <option value="semana" {% if filtros.agrupacion == 'semana' %}selected{% endif %}>Por semana</option>
+        <option value="mes"    {% if filtros.agrupacion == 'mes'    %}selected{% endif %}>Por mes</option>
+    </select>
+    <button type="submit" class="boton boton-principal">Aplicar</button>
+    <a href="{{ url_for('analisis.panel') }}" class="boton">Últimos 90 días</a>
+</form>
+
+{# --- Indicadores principales ---------------------------------------- #}
+<div class="rejilla">
+    <div class="indicador">
+        <span class="indicador-etiqueta">Facturación</span>
+        <span class="indicador-valor">{{ resumen.facturado|euros }}</span>
+        <span class="indicador-pie">{{ resumen.num_ventas }} ventas · {{ resumen.unidades }} unidades</span>
+    </div>
+
+    {% if ver_finanzas %}
+    <div class="indicador">
+        <span class="indicador-etiqueta">Beneficio bruto</span>
+        <span class="indicador-valor valor-exito">{{ resumen.beneficio|euros }}</span>
+        <span class="indicador-pie">coste de la mercancía: {{ resumen.coste|euros }}</span>
+    </div>
+
+    <div class="indicador">
+        <span class="indicador-etiqueta">Margen medio</span>
+        <span class="indicador-valor">{{ resumen.margen|porcentaje }}</span>
+        <span class="indicador-pie">sobre la facturación</span>
+    </div>
+    {% endif %}
+
+    <div class="indicador">
+        <span class="indicador-etiqueta">Ticket medio</span>
+        <span class="indicador-valor">{{ resumen.ticket_medio|euros }}</span>
+        <span class="indicador-pie">importe medio por venta</span>
+    </div>
+
+    {% if ver_finanzas %}
+    <div class="indicador">
+        <span class="indicador-etiqueta">Valor del inventario</span>
+        <span class="indicador-valor">{{ valor_stock|euros }}</span>
+        <span class="indicador-pie">dinero inmovilizado a coste</span>
+    </div>
+    {% endif %}
+</div>
+
+{# --- Alertas --------------------------------------------------------- #}
+{% if en_riesgo or (ver_finanzas and bajo_margen) %}
+<div class="dos-columnas">
+
+    {% if en_riesgo %}
+    <div class="tarjeta">
+        <h2>⚠️ Riesgo de rotura de stock</h2>
+        <p class="texto-tenue">
+            Productos que se agotarán en menos de {{ config.DIAS_RIESGO_ROTURA }} días
+            al ritmo de venta actual, o que ya están por debajo del mínimo.
+        </p>
+        <div class="tabla-marco">
+            <table class="tabla">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th class="num">Stock</th>
+                        <th class="num">Venta diaria</th>
+                        <th class="num">Días restantes</th>
+                        <th>Situación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in en_riesgo[:10] %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('productos.detalle', producto_id=f.producto.id) }}">
+                                {{ f.producto.nombre }}
+                            </a>
+                        </td>
+                        <td class="num">{{ f.producto.stock_actual }}</td>
+                        <td class="num">{{ '%.2f'|format(f.velocidad)|replace('.', ',') }}</td>
+                        <td class="num">
+                            {% if f.dias_restantes is none %}—
+                            {% else %}{{ '%.0f'|format(f.dias_restantes) }}{% endif %}
+                        </td>
+                        <td>
+                            {% if f.nivel == 'sin_stock' %}{{ etiqueta('Sin stock', 'peligro') }}
+                            {% elif f.nivel == 'critico' %}{{ etiqueta('Crítico', 'peligro') }}
+                            {% else %}{{ etiqueta('Bajo mínimo', 'aviso') }}{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if ver_finanzas and bajo_margen %}
+    <div class="tarjeta">
+        <h2>📉 Productos con bajo margen</h2>
+        <p class="texto-tenue">
+            Margen por debajo del {{ config.UMBRAL_MARGEN_BAJO }} %. Conviene renegociar
+            el precio con el proveedor o revisar la tarifa de venta.
+        </p>
+        <div class="tabla-marco">
+            <table class="tabla">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th class="num">Coste</th>
+                        <th class="num">PVP</th>
+                        <th class="num">Margen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in bajo_margen %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('productos.detalle', producto_id=p.id) }}">{{ p.nombre }}</a>
+                        </td>
+                        <td class="num">{{ p.coste_adquisicion|euros }}</td>
+                        <td class="num">{{ p.precio_venta|euros }}</td>
+                        <td class="num">
+                            {% if p.margen_porcentual < 0 %}
+                                {{ etiqueta(p.margen_porcentual|porcentaje, 'peligro') }}
+                            {% else %}
+                                {{ etiqueta(p.margen_porcentual|porcentaje, 'aviso') }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endif %}
+
+{# --- Evolución de ventas --------------------------------------------- #}
+<div class="tarjeta">
+    <h2>Evolución de las ventas</h2>
+    {% if evolucion %}
+        <div class="leyenda">
+            <span class="leyenda-item"><span class="leyenda-color color-facturado"></span> Facturación</span>
+            {% if ver_finanzas %}
+                <span class="leyenda-item"><span class="leyenda-color color-beneficio"></span> Beneficio</span>
+            {% endif %}
+            <span class="texto-tenue">Máximo del periodo: {{ maximo_grafica|euros }}</span>
+        </div>
+
+        {# La gráfica es un SVG generado por nosotros: sin librerías externas,
+           funciona sin conexión a internet. viewBox + preserveAspectRatio hacen
+           que se adapte al ancho disponible. #}
+        <div class="grafica-marco">
+            <svg viewBox="0 0 760 200" preserveAspectRatio="none" class="grafica">
+                {# Líneas de referencia horizontales #}
+                {% for i in range(5) %}
+                    <line x1="0" y1="{{ i * 45 }}" x2="760" y2="{{ i * 45 }}"
+                          stroke="#e2e8f0" stroke-width="1" />
+                {% endfor %}
+
+                {# Área bajo la curva de facturación #}
+                <polygon points="0,180 {{ puntos_facturado }} 760,180"
+                         fill="rgba(37, 99, 235, .10)" />
+
+                <polyline points="{{ puntos_facturado }}" fill="none"
+                          stroke="#2563eb" stroke-width="2"
+                          stroke-linejoin="round" stroke-linecap="round" />
+
+                {% if ver_finanzas %}
+                    <polyline points="{{ puntos_beneficio }}" fill="none"
+                              stroke="#16a34a" stroke-width="2" stroke-dasharray="5,3"
+                              stroke-linejoin="round" stroke-linecap="round" />
+                {% endif %}
+            </svg>
+        </div>
+
+        <div class="grafica-etiquetas">
+            {% for f in evolucion %}
+                {# Con muchos puntos, mostramos solo algunas etiquetas para que
+                   no se amontonen: una de cada N según el total. #}
+                {% set salto = (evolucion|length // 12) + 1 %}
+                {% if loop.index0 % salto == 0 %}
+                    <span>{{ f.periodo }}</span>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="vacio">
+            <span class="vacio-icono">📈</span>
+            <p class="texto-tenue">No hay ventas en el periodo seleccionado.</p>
+        </div>
+    {% endif %}
+</div>
+
+{# --- Ventas por categoría -------------------------------------------- #}
+<div class="tarjeta">
+    <h2>Ventas por categoría</h2>
+    {% if categorias %}
+        {% set maximo_cat = categorias[0].facturado %}
+        <div class="barras">
+            {% for c in categorias %}
+            <div class="barra-fila">
+                <span class="barra-etiqueta">{{ c.categoria }}</span>
+                <div class="barra-pista">
+                    {# El ancho de la barra es proporcional al valor mayor. #}
+                    <div class="barra-relleno" style="width: {{ (c.facturado / maximo_cat * 100)|round(1) }}%"></div>
+                </div>
+                <span class="barra-valor">{{ c.facturado|euros }}</span>
+                {% if ver_finanzas %}
+                    <span class="barra-extra texto-tenue">{{ c.beneficio|euros }} benef.</span>
+                {% endif %}
+                <span class="barra-extra texto-tenue">{{ c.unidades }} ud.</span>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="texto-tenue">Sin datos en el periodo.</p>
+    {% endif %}
+</div>
+
+{# --- Rankings -------------------------------------------------------- #}
+<div class="tres-columnas">
+
+    <div class="tarjeta">
+        <h2>🏆 Más vendidos</h2>
+        <p class="texto-tenue">Por unidades vendidas.</p>
+        <table class="tabla">
+            <thead>
+                <tr><th>Producto</th><th class="num">Ud.</th><th class="num">Facturado</th></tr>
+            </thead>
+            <tbody>
+                {% for f in mas_vendidos %}
+                <tr>
+                    <td><a href="{{ url_for('productos.detalle', producto_id=f.producto.id) }}">{{ f.producto.nombre }}</a></td>
+                    <td class="num"><strong>{{ f.unidades }}</strong></td>
+                    <td class="num">{{ f.facturado|euros }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if ver_finanzas %}
+    <div class="tarjeta">
+        <h2>💰 Más rentables</h2>
+        <p class="texto-tenue">Por beneficio generado. No siempre coinciden con los más vendidos.</p>
+        <table class="tabla">
+            <thead>
+                <tr><th>Producto</th><th class="num">Beneficio</th><th class="num">Ud.</th></tr>
+            </thead>
+            <tbody>
+                {% for f in mas_rentables %}
+                <tr>
+                    <td><a href="{{ url_for('productos.detalle', producto_id=f.producto.id) }}">{{ f.producto.nombre }}</a></td>
+                    <td class="num valor-exito"><strong>{{ f.beneficio|euros }}</strong></td>
+                    <td class="num">{{ f.unidades }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <div class="tarjeta">
+        <h2>🐌 Menor rotación</h2>
+        <p class="texto-tenue">Productos parados: ocupan almacén y tienen dinero inmovilizado.</p>
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th class="num">Rotación</th>
+                    {% if ver_finanzas %}<th class="num">Inmovilizado</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in menor_rotacion %}
+                <tr>
+                    <td><a href="{{ url_for('productos.detalle', producto_id=f.producto.id) }}">{{ f.producto.nombre }}</a></td>
+                    <td class="num">{{ '%.2f'|format(f.rotacion)|replace('.', ',') }}</td>
+                    {% if ver_finanzas %}<td class="num">{{ f.inmovilizado|euros }}</td>{% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+{% endblock %}
