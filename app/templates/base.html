@@ -1,0 +1,63 @@
+{# ===========================================================================
+   Plantilla base de toda la aplicación.
+
+   Contiene el esqueleto HTML común: cabecera, hoja de estilos y el sistema de
+   mensajes flash. Las demás plantillas la extienden con {% extends "base.html" %}
+   y rellenan sus bloques.
+
+   Esto que estás leyendo es un comentario de Jinja2: no llega al navegador.
+   Es distinto del comentario HTML, que sí se envía y cualquiera puede leer
+   con "ver código fuente".
+
+   AVISO: los comentarios de Jinja NO se pueden anidar. En cuanto aparece la
+   marca de cierre, el comentario termina; escribirla dentro como ejemplo hace
+   que el resto del texto se muestre en la página.
+   =========================================================================== #}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    {# El bloque title tiene contenido por defecto. Si una plantilla hija no lo
+       sobrescribe, se usa este. La variable "titulo" la pasamos desde la vista
+       con render_template(..., titulo="..."). #}
+    <title>{% block title %}{{ titulo|default('Gestión') }} · {{ config.NOMBRE_APP }}{% endblock %}</title>
+
+    {# url_for('static', filename=...) genera la ruta correcta al fichero.
+       Nunca se escribe la ruta a mano ("/static/css/estilos.css"): si algún día
+       la aplicación se despliega bajo un subdirectorio, url_for se adapta solo. #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+
+    {% block head_extra %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+
+    {# --- Mensajes flash --------------------------------------------------
+       flash() en las vistas guarda un mensaje en la sesión para mostrarlo en la
+       SIGUIENTE página que se cargue. Es el mecanismo estándar para confirmar
+       una acción después de una redirección ("Producto guardado correctamente").
+
+       with_categories=true nos devuelve parejas (categoría, mensaje). La
+       categoría ("success", "danger", "warning", "info") la usamos como clase
+       CSS para darle el color adecuado a cada aviso. #}
+    <div class="contenedor-flash">
+        {% with mensajes = get_flashed_messages(with_categories=true) %}
+            {% if mensajes %}
+                {% for categoria, mensaje in mensajes %}
+                    <div class="alerta alerta-{{ categoria }}">
+                        <span>{{ mensaje }}</span>
+                        <button type="button" class="alerta-cerrar" onclick="this.parentElement.remove()">&times;</button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    {# El bloque principal: aquí es donde cada página inserta su contenido. #}
+    {% block contenido %}{% endblock %}
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,176 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import etiqueta %}
+
+{% set ver_finanzas = current_user.tiene_permiso('analisis.financiero') %}
+
+{% block subtitulo %}
+    <p class="subtitulo">
+        {{ usuario.nombre }} · {{ usuario.rol.value }} ·
+        Datos de los últimos 30 días ({{ desde|fecha }} a {{ hasta|fecha }})
+    </p>
+{% endblock %}
+
+{% block acciones %}
+    {% if current_user.tiene_permiso('ventas.registrar') %}
+        <a href="{{ url_for('ventas.crear') }}" class="boton boton-principal">+ Nueva venta</a>
+    {% endif %}
+    {% if current_user.tiene_permiso('analisis.ver') %}
+        <a href="{{ url_for('analisis.panel') }}" class="boton">Ver análisis completo</a>
+    {% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+
+{# --- Cifras del mes --------------------------------------------------- #}
+<div class="rejilla">
+    <div class="indicador">
+        <span class="indicador-etiqueta">Facturación (30 días)</span>
+        <span class="indicador-valor">{{ resumen.facturado|euros }}</span>
+        <span class="indicador-pie">{{ resumen.num_ventas }} ventas</span>
+    </div>
+
+    {% if ver_finanzas %}
+    <div class="indicador">
+        <span class="indicador-etiqueta">Beneficio (30 días)</span>
+        <span class="indicador-valor valor-exito">{{ resumen.beneficio|euros }}</span>
+        <span class="indicador-pie">{{ resumen.margen|porcentaje }} de margen</span>
+    </div>
+    <div class="indicador">
+        <span class="indicador-etiqueta">Valor del inventario</span>
+        <span class="indicador-valor">{{ valor_stock|euros }}</span>
+        <span class="indicador-pie">a precio de coste</span>
+    </div>
+    {% endif %}
+
+    <div class="indicador">
+        <span class="indicador-etiqueta">Catálogo</span>
+        <span class="indicador-valor">{{ total_productos }}</span>
+        <span class="indicador-pie">productos activos · {{ total_proveedores }} proveedores</span>
+    </div>
+
+    <div class="indicador">
+        <span class="indicador-etiqueta">Alertas de stock</span>
+        <span class="indicador-valor {% if en_riesgo %}valor-aviso{% else %}valor-exito{% endif %}">
+            {{ en_riesgo|length }}
+        </span>
+        <span class="indicador-pie">
+            {% if en_riesgo %}productos requieren atención{% else %}todo correcto{% endif %}
+        </span>
+    </div>
+</div>
+
+{# --- Avisos que requieren acción -------------------------------------- #}
+{% if en_riesgo or bajo_margen %}
+<div class="dos-columnas">
+
+    {% if en_riesgo %}
+    <div class="tarjeta">
+        <div class="tarjeta-titulo">
+            <h2>⚠️ Necesitan reposición</h2>
+            {% if current_user.tiene_permiso('compras.registrar') %}
+                <a href="{{ url_for('compras.crear') }}" class="boton boton-pequeno">Hacer pedido</a>
+            {% endif %}
+        </div>
+        <table class="tabla">
+            <thead>
+                <tr><th>Producto</th><th class="num">Stock</th><th class="num">Días</th><th>Situación</th></tr>
+            </thead>
+            <tbody>
+                {% for f in en_riesgo[:6] %}
+                <tr>
+                    <td><a href="{{ url_for('productos.detalle', producto_id=f.producto.id) }}">{{ f.producto.nombre }}</a></td>
+                    <td class="num">{{ f.producto.stock_actual }}</td>
+                    <td class="num">
+                        {% if f.dias_restantes is none %}—{% else %}{{ '%.0f'|format(f.dias_restantes) }}{% endif %}
+                    </td>
+                    <td>
+                        {% if f.nivel == 'sin_stock' %}{{ etiqueta('Sin stock', 'peligro') }}
+                        {% elif f.nivel == 'critico' %}{{ etiqueta('Crítico', 'peligro') }}
+                        {% else %}{{ etiqueta('Bajo mínimo', 'aviso') }}{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if bajo_margen %}
+    <div class="tarjeta">
+        <h2>📉 Márgenes por debajo del {{ config.UMBRAL_MARGEN_BAJO }} %</h2>
+        <table class="tabla">
+            <thead>
+                <tr><th>Producto</th><th class="num">Coste</th><th class="num">PVP</th><th class="num">Margen</th></tr>
+            </thead>
+            <tbody>
+                {% for p in bajo_margen[:6] %}
+                <tr>
+                    <td><a href="{{ url_for('productos.detalle', producto_id=p.id) }}">{{ p.nombre }}</a></td>
+                    <td class="num">{{ p.coste_adquisicion|euros }}</td>
+                    <td class="num">{{ p.precio_venta|euros }}</td>
+                    <td class="num">{{ etiqueta(p.margen_porcentual|porcentaje, 'aviso') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+</div>
+{% endif %}
+
+{# --- Actividad reciente ------------------------------------------------ #}
+<div class="dos-columnas">
+
+    <div class="tarjeta">
+        <div class="tarjeta-titulo">
+            <h2>Últimas ventas</h2>
+            <a href="{{ url_for('ventas.listar') }}" class="boton boton-pequeno">Ver todas</a>
+        </div>
+        {% if ultimas_ventas %}
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Número</th><th>Fecha</th><th>Cliente</th><th class="num">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in ultimas_ventas %}
+                <tr>
+                    <td><a href="{{ url_for('ventas.detalle', venta_id=v.id) }}"><code class="referencia">{{ v.numero }}</code></a></td>
+                    <td>{{ v.fecha|fecha }}</td>
+                    <td class="texto-tenue">{{ v.cliente or '—' }}</td>
+                    <td class="num"><strong>{{ v.total|euros }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p class="texto-tenue">Todavía no hay ventas registradas.</p>
+        {% endif %}
+    </div>
+
+    <div class="tarjeta">
+        <h2>Más vendidos del mes</h2>
+        {% if mas_vendidos %}
+        <table class="tabla">
+            <thead>
+                <tr><th>Producto</th><th class="num">Unidades</th><th class="num">Facturado</th></tr>
+            </thead>
+            <tbody>
+                {% for f in mas_vendidos %}
+                <tr>
+                    <td><a href="{{ url_for('productos.detalle', producto_id=f.producto.id) }}">{{ f.producto.nombre }}</a></td>
+                    <td class="num"><strong>{{ f.unidades }}</strong></td>
+                    <td class="num">{{ f.facturado|euros }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p class="texto-tenue">Sin ventas en los últimos 30 días.</p>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

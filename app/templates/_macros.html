@@ -1,0 +1,70 @@
+{# ===========================================================================
+   Macros reutilizables de Jinja2.
+
+   Una macro es el equivalente a una función, pero para plantillas: se define
+   una vez y se llama desde cualquier sitio pasándole argumentos.
+
+   Aquí resolvemos un problema muy concreto: pintar un campo de formulario con
+   su etiqueta, su caja de texto, sus errores y su texto de ayuda son 6 líneas
+   de HTML. Si la aplicación tiene 40 campos repartidos por 8 formularios, eso
+   son 240 líneas duplicadas... y cualquier retoque de diseño obliga a repasar
+   las 8 plantillas. Con la macro es una llamada de una línea por campo.
+
+   Uso desde otra plantilla:
+       {% from "_macros.html" import campo %}
+       {{ campo(formulario.email) }}
+
+   El guion bajo inicial del nombre del fichero es una convención: indica que
+   es un fragmento reutilizable, no una página que se pueda visitar.
+   =========================================================================== #}
+
+{# ---------------------------------------------------------------------------
+   Campo de formulario genérico.
+
+   Parámetros:
+     campo_form : el campo de WTForms (formulario.email, formulario.nombre...)
+     ayuda      : texto explicativo opcional bajo el campo
+     clase      : clases CSS adicionales para el contenedor
+   --------------------------------------------------------------------------- #}
+{% macro campo(campo_form, ayuda='', clase='') %}
+<div class="campo {{ clase }}">
+    {{ campo_form.label }}
+
+    {# El operador ~ concatena cadenas en Jinja2 (el + de Python sirve para
+       números). Añadimos la clase de error solo si el campo tiene errores. #}
+    {{ campo_form(class="entrada" ~ (" entrada-error" if campo_form.errors else "")) }}
+
+    {% if ayuda %}
+        <span class="campo-ayuda">{{ ayuda }}</span>
+    {% endif %}
+
+    {# Un campo puede acumular varios errores a la vez (por ejemplo, contraseña
+       demasiado corta Y sin números), así que los recorremos todos. #}
+    {% for error in campo_form.errors %}
+        <span class="mensaje-error">{{ error }}</span>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+
+{# ---------------------------------------------------------------------------
+   Campo de tipo casilla de verificación: la etiqueta va a la derecha.
+   --------------------------------------------------------------------------- #}
+{% macro campo_check(campo_form) %}
+<div class="campo-linea">
+    {{ campo_form() }}
+    {{ campo_form.label }}
+    {% for error in campo_form.errors %}
+        <span class="mensaje-error">{{ error }}</span>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+
+{# ---------------------------------------------------------------------------
+   Etiqueta de color para estados (stock bajo, margen bajo, rol de usuario...).
+   Centraliza el aspecto de todos los distintivos de la aplicación.
+   --------------------------------------------------------------------------- #}
+{% macro etiqueta(texto, tipo='neutro') %}
+<span class="distintivo distintivo-{{ tipo }}">{{ texto }}</span>
+{% endmacro %}

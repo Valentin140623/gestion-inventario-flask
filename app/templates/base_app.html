@@ -1,0 +1,79 @@
+{# ===========================================================================
+   Plantilla base de las páginas internas (las que requieren sesión iniciada).
+
+   Extiende base.html y le añade el menú lateral y la barra superior. Las
+   páginas de la aplicación extienden ESTA, no la otra:
+
+       {% extends "base_app.html" %}
+
+   El login y el registro extienden base.html directamente, porque no deben
+   mostrar el menú de navegación.
+   =========================================================================== #}
+{% extends "base.html" %}
+
+{% block body_class %}con-navegacion{% endblock %}
+
+{% block contenido %}
+<div class="disposicion">
+
+    {# --- Menú lateral -------------------------------------------------- #}
+    <aside class="lateral">
+        <div class="lateral-marca">
+            <span class="marca-icono">🍽️</span>
+            <div>
+                <strong>{{ config.NOMBRE_APP }}</strong>
+                <small>Sistema de gestión</small>
+            </div>
+        </div>
+
+        <nav class="lateral-menu">
+            {# menu_navegacion lo inyecta un context processor definido en
+               app/__init__.py, de modo que está disponible en todas las
+               plantillas sin tener que pasarlo desde cada vista. #}
+            {% for entrada in menu_navegacion %}
+                {# request.endpoint es la vista que se está mostrando ahora.
+                   Comparándolo marcamos la opción activa del menú. #}
+                <a href="{{ url_for(entrada.endpoint) }}"
+                   class="menu-item {% if request.endpoint == entrada.endpoint %}activo{% endif %}">
+                    <span class="menu-icono">{{ entrada.icono }}</span>
+                    <span>{{ entrada.etiqueta }}</span>
+                </a>
+            {% endfor %}
+        </nav>
+
+        <div class="lateral-pie">
+            <div class="usuario-tarjeta">
+                {# Iniciales del usuario como avatar: cogemos la primera letra
+                   de cada palabra del nombre, máximo dos. #}
+                <div class="usuario-avatar">
+                    {{ current_user.nombre.split()[0][0] }}{% if current_user.nombre.split()|length > 1 %}{{ current_user.nombre.split()[1][0] }}{% endif %}
+                </div>
+                <div class="usuario-datos">
+                    <strong>{{ current_user.nombre }}</strong>
+                    {# .rol es un miembro del Enum RolUsuario; .value da su
+                       texto legible ("Responsable de almacén"). #}
+                    <small>{{ current_user.rol.value }}</small>
+                </div>
+            </div>
+            <a href="{{ url_for('auth.logout') }}" class="boton boton-salir">Cerrar sesión</a>
+        </div>
+    </aside>
+
+    {# --- Zona principal ------------------------------------------------- #}
+    <main class="principal">
+        <header class="cabecera">
+            <div>
+                <h1>{% block encabezado %}{{ titulo }}{% endblock %}</h1>
+                {% block subtitulo %}{% endblock %}
+            </div>
+            <div class="cabecera-acciones">
+                {% block acciones %}{% endblock %}
+            </div>
+        </header>
+
+        <div class="contenido">
+            {% block cuerpo %}{% endblock %}
+        </div>
+    </main>
+</div>
+{% endblock %}
