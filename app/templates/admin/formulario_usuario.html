@@ -1,0 +1,34 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import campo, campo_check %}
+
+{% block acciones %}
+    <a href="{{ url_for('admin.listar_usuarios') }}" class="boton">Volver</a>
+{% endblock %}
+
+{% block cuerpo %}
+<div class="tarjeta tarjeta-formulario tarjeta-estrecha">
+    <form method="POST" novalidate>
+        {{ formulario.hidden_tag() }}
+
+        {{ campo(formulario.nombre) }}
+        {{ campo(formulario.email) }}
+        {{ campo(formulario.rol, ayuda="Determina a qué secciones y datos tendrá acceso.") }}
+
+        {% if formulario.es_edicion %}
+            <div class="nota-informativa">
+                Deja las contraseñas en blanco si no quieres cambiar la actual.
+            </div>
+        {% endif %}
+
+        {{ campo(formulario.password, ayuda="Mínimo 8 caracteres, con al menos una letra y un número.") }}
+        {{ campo(formulario.password2) }}
+
+        {{ campo_check(formulario.activo) }}
+
+        <div class="form-acciones">
+            {{ formulario.submit(class="boton boton-principal") }}
+            <a href="{{ url_for('admin.listar_usuarios') }}" class="boton">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import etiqueta %}
+
+{% block subtitulo %}
+    <p class="subtitulo">{{ usuarios|length }} usuario(s) registrado(s)</p>
+{% endblock %}
+
+{% block acciones %}
+    <a href="{{ url_for('admin.crear_usuario') }}" class="boton boton-principal">+ Nuevo usuario</a>
+{% endblock %}
+
+{% block cuerpo %}
+<div class="tarjeta">
+    <div class="tabla-marco">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Correo electrónico</th>
+                    <th>Rol</th>
+                    <th>Estado</th>
+                    <th>Alta</th>
+                    <th>Último acceso</th>
+                    <th class="num">Actividad</th>
+                    <th class="acciones">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in usuarios %}
+                <tr>
+                    <td>
+                        <strong>{{ u.nombre }}</strong>
+                        {% if u.id == current_user.id %}
+                            <span class="texto-tenue">(tú)</span>
+                        {% endif %}
+                    </td>
+                    <td class="texto-tenue">{{ u.email }}</td>
+                    <td>
+                        {% if u.rol.name == 'ADMIN' %}{{ etiqueta(u.rol.value, 'info') }}
+                        {% elif u.rol.name == 'ALMACEN' %}{{ etiqueta(u.rol.value, 'neutro') }}
+                        {% else %}{{ etiqueta(u.rol.value, 'aviso') }}{% endif %}
+                    </td>
+                    <td>
+                        {% if u.activo %}{{ etiqueta('Activo', 'exito') }}
+                        {% else %}{{ etiqueta('Desactivado', 'peligro') }}{% endif %}
+                    </td>
+                    <td>{{ u.fecha_alta|fecha }}</td>
+                    <td class="texto-tenue">
+                        {% if u.ultimo_acceso %}{{ u.ultimo_acceso|fecha(True) }}{% else %}Nunca{% endif %}
+                    </td>
+                    <td class="num texto-tenue">
+                        {{ u.ventas|length }} ventas · {{ u.movimientos|length }} mov.
+                    </td>
+                    <td class="acciones">
+                        <a href="{{ url_for('admin.editar_usuario', usuario_id=u.id) }}"
+                           class="boton boton-pequeno">Editar</a>
+
+                        {% if u.id != current_user.id %}
+                            <form method="POST" class="form-inline"
+                                  action="{{ url_for('admin.cambiar_estado', usuario_id=u.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="boton boton-pequeno">
+                                    {% if u.activo %}Desactivar{% else %}Activar{% endif %}
+                                </button>
+                            </form>
+
+                            <form method="POST" class="form-inline"
+                                  action="{{ url_for('admin.eliminar_usuario', usuario_id=u.id) }}"
+                                  onsubmit="return confirm('¿Eliminar definitivamente a {{ u.nombre }}?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="boton boton-pequeno boton-peligro">Eliminar</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="nota-informativa">
+        Un usuario con actividad registrada (ventas, compras o movimientos de inventario)
+        no se puede eliminar: hacerlo dejaría esos documentos sin responsable y se perdería
+        la trazabilidad. En ese caso hay que desactivarlo, lo que le retira el acceso
+        conservando todo el histórico.
+    </div>
+</div>
+{% endblock %}
