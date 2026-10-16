@@ -1,0 +1,203 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import etiqueta %}
+
+{% set ver_finanzas = current_user.tiene_permiso('analisis.financiero') %}
+{% set puede_editar = current_user.tiene_permiso('proveedores.editar') %}
+
+{% block encabezado %}{{ proveedor.nombre }}{% endblock %}
+
+{% block subtitulo %}
+    <p class="subtitulo">
+        <code class="referencia">{{ proveedor.cif }}</code>
+        {% if not proveedor.activo %}{{ etiqueta('Inactivo', 'neutro') }}{% endif %}
+    </p>
+{% endblock %}
+
+{% block acciones %}
+    <a href="{{ url_for('proveedores.listar') }}" class="boton">Volver</a>
+    {% if puede_editar %}
+        <a href="{{ url_for('proveedores.editar', proveedor_id=proveedor.id) }}" class="boton">Editar</a>
+        <a href="{{ url_for('proveedores.asociar_producto', proveedor_id=proveedor.id) }}"
+           class="boton boton-principal">+ Asociar producto</a>
+    {% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+
+<div class="rejilla">
+    <div class="indicador">
+        <span class="indicador-etiqueta">Productos suministrados</span>
+        <span class="indicador-valor">{{ metricas.num_productos }}</span>
+        <span class="indicador-pie">referencias en catálogo</span>
+    </div>
+    <div class="indicador">
+        <span class="indicador-etiqueta">Pedidos realizados</span>
+        <span class="indicador-valor">{{ metricas.num_compras }}</span>
+        {% if ver_finanzas %}
+            <span class="indicador-pie">{{ metricas.total_comprado|euros }} en total</span>
+        {% endif %}
+    </div>
+    <div class="indicador">
+        <span class="indicador-etiqueta">Plazo real de entrega</span>
+        <span class="indicador-valor">
+            {% if metricas.plazo_medio_real is not none %}
+                {{ '%.1f'|format(metricas.plazo_medio_real)|replace('.', ',') }} d
+            {% else %}—{% endif %}
+        </span>
+        <span class="indicador-pie">prometido: {{ proveedor.plazo_entrega_dias }} días</span>
+    </div>
+    <div class="indicador">
+        <span class="indicador-etiqueta">Puntualidad</span>
+        <span class="indicador-valor
+            {% if metricas.puntualidad is not none %}
+                {% if metricas.puntualidad >= 90 %}valor-exito
+                {% elif metricas.puntualidad < 70 %}valor-peligro{% endif %}
+            {% endif %}">
+            {% if metricas.puntualidad is not none %}{{ metricas.puntualidad|porcentaje(0) }}{% else %}—{% endif %}
+        </span>
+        <span class="indicador-pie">pedidos dentro de plazo</span>
+    </div>
+</div>
+
+<div class="dos-columnas">
+
+    <div class="tarjeta">
+        <h2>Datos de contacto</h2>
+        <dl class="ficha">
+            <dt>Persona de contacto</dt><dd>{{ proveedor.persona_contacto or '—' }}</dd>
+            <dt>Correo electrónico</dt><dd>{{ proveedor.email or '—' }}</dd>
+            <dt>Teléfono</dt><dd>{{ proveedor.telefono or '—' }}</dd>
+            <dt>Dirección</dt><dd>{{ proveedor.direccion or '—' }}</dd>
+            <dt>Condiciones de pago</dt><dd>{{ proveedor.condiciones_pago or '—' }}</dd>
+            <dt>Plazo comprometido</dt><dd>{{ proveedor.plazo_entrega_dias }} días</dd>
+            <dt>Alta</dt><dd>{{ proveedor.fecha_alta|fecha }}</dd>
+            {% if proveedor.observaciones %}
+                <dt>Observaciones</dt><dd>{{ proveedor.observaciones }}</dd>
+            {% endif %}
+        </dl>
+    </div>
+
+    <div class="tarjeta">
+        <h2>Histórico de compras</h2>
+        {% if compras %}
+        <div class="tabla-marco">
+            <table class="tabla">
+                <thead>
+                    <tr>
+                        <th>Pedido</th>
+                        <th>Fecha</th>
+                        <th class="num">Artículos</th>
+                        {% if ver_finanzas %}<th class="num">Importe</th>{% endif %}
+                        <th class="num">Entrega</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in compras %}
+                    <tr>
+                        <td><code class="referencia">{{ c.numero }}</code></td>
+                        <td>{{ c.fecha|fecha }}</td>
+                        <td class="num">{{ c.num_articulos }}</td>
+                        {% if ver_finanzas %}<td class="num">{{ c.total|euros }}</td>{% endif %}
+                        <td class="num">
+                            {% if c.dias_entrega_real is not none %}
+                                {% if c.dias_entrega_real <= proveedor.plazo_entrega_dias %}
+                                    {{ etiqueta(c.dias_entrega_real ~ ' d', 'exito') }}
+                                {% else %}
+                                    {{ etiqueta(c.dias_entrega_real ~ ' d', 'peligro') }}
+                                {% endif %}
+                            {% else %}{{ etiqueta('Pendiente', 'aviso') }}{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="vacio">
+            <span class="vacio-icono">🚚</span>
+            <p class="texto-tenue">Todavía no se le ha hecho ningún pedido.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="tarjeta">
+    <h2>Productos que suministra</h2>
+    {% if asociaciones %}
+    <div class="tabla-marco">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Referencia</th>
+                    <th>Producto</th>
+                    <th>Ref. proveedor</th>
+                    {% if ver_finanzas %}
+                        <th class="num">Su precio</th>
+                        <th class="num">Coste por unidad</th>
+                        <th class="num">Nuestro PVP</th>
+                        <th class="num">Margen</th>
+                    {% endif %}
+                    <th class="num">Plazo</th>
+                    <th class="num">Pedido mín.</th>
+                    <th></th>
+                    {% if puede_editar %}<th class="acciones"></th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in asociaciones %}
+                <tr>
+                    <td><code class="referencia">{{ a.producto.referencia }}</code></td>
+                    <td>
+                        <a href="{{ url_for('productos.detalle', producto_id=a.producto.id) }}">
+                            {{ a.producto.nombre }}
+                        </a>
+                    </td>
+                    <td class="texto-tenue">{{ a.referencia_proveedor or '—' }}</td>
+                    {% if ver_finanzas %}
+                        <td class="num">
+                            {{ a.precio_coste|euros }}
+                            {% if a.producto.se_vende_por_racion %}
+                                <span class="texto-tenue">/ envase</span>
+                            {% endif %}
+                        </td>
+                        <td class="num">
+                            {{ a.coste_por_unidad_vendida|euros }}
+                            {% if a.producto.se_vende_por_racion %}
+                                <span class="texto-tenue">/ {{ a.producto.nombre_racion }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="num">{{ a.producto.precio_venta|euros }}</td>
+                        <td class="num">
+                            {% if a.margen_resultante < config.UMBRAL_MARGEN_BAJO %}
+                                {{ etiqueta(a.margen_resultante|porcentaje, 'aviso') }}
+                            {% else %}
+                                {{ etiqueta(a.margen_resultante|porcentaje, 'exito') }}
+                            {% endif %}
+                        </td>
+                    {% endif %}
+                    <td class="num">{{ a.plazo_entrega_dias }} d</td>
+                    <td class="num">{{ a.cantidad_minima_pedido }}</td>
+                    <td>{% if a.es_preferente %}{{ etiqueta('Preferente', 'info') }}{% endif %}</td>
+                    {% if puede_editar %}
+                    <td class="acciones">
+                        <form method="POST" class="form-inline"
+                              action="{{ url_for('proveedores.eliminar_asociacion', asociacion_id=a.id) }}"
+                              onsubmit="return confirm('¿Quitar este producto del proveedor?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="boton boton-pequeno">Quitar</button>
+                        </form>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="vacio">
+        <span class="vacio-icono">📦</span>
+        <p class="texto-tenue">Este proveedor no tiene productos asociados todavía.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

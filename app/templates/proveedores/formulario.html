@@ -1,0 +1,42 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import campo, campo_check %}
+
+{% block acciones %}
+    <a href="{{ url_for('proveedores.listar') }}" class="boton">Volver</a>
+{% endblock %}
+
+{% block cuerpo %}
+<div class="tarjeta tarjeta-formulario">
+    <form method="POST" novalidate>
+        {{ formulario.hidden_tag() }}
+
+        <h3>Identificación</h3>
+        <div class="form-rejilla">
+            {{ campo(formulario.nombre) }}
+            {{ campo(formulario.cif, ayuda="Identificador fiscal. No puede repetirse.") }}
+        </div>
+
+        <h3>Contacto</h3>
+        <div class="form-rejilla">
+            {{ campo(formulario.persona_contacto) }}
+            {{ campo(formulario.email) }}
+            {{ campo(formulario.telefono) }}
+            {{ campo(formulario.direccion) }}
+        </div>
+
+        <h3>Condiciones comerciales</h3>
+        <div class="form-rejilla">
+            {{ campo(formulario.condiciones_pago, ayuda="Por ejemplo: 60 días fecha factura.") }}
+            {{ campo(formulario.plazo_entrega_dias, ayuda="Se compara con el plazo real para medir su puntualidad.") }}
+        </div>
+
+        {{ campo(formulario.observaciones) }}
+        {{ campo_check(formulario.activo) }}
+
+        <div class="form-acciones">
+            {{ formulario.submit(class="boton boton-principal") }}
+            <a href="{{ url_for('proveedores.listar') }}" class="boton">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

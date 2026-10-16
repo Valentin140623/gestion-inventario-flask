@@ -1,0 +1,165 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import etiqueta %}
+
+{% set ver_finanzas = current_user.tiene_permiso('analisis.financiero') %}
+
+{% block subtitulo %}
+    <p class="subtitulo">Compara precios y condiciones entre los proveedores de un mismo producto</p>
+{% endblock %}
+
+{% block acciones %}
+    <a href="{{ url_for('proveedores.listar') }}" class="boton">Volver a proveedores</a>
+{% endblock %}
+
+{% block cuerpo %}
+
+<form method="get" class="filtros">
+    <select name="producto" class="entrada filtro-busqueda">
+        <option value="0">— Selecciona un producto —</option>
+        {% for p in productos %}
+            <option value="{{ p.id }}" {% if producto and producto.id == p.id %}selected{% endif %}>
+                {{ p.referencia }} · {{ p.nombre }}
+            </option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="boton boton-principal">Comparar</button>
+</form>
+
+{% if producto and comparacion %}
+<div class="tarjeta">
+    <h2>{{ producto.nombre }}</h2>
+    <p class="texto-tenue">
+        Precio de venta al público: <strong>{{ producto.precio_venta|euros }}</strong>{% if producto.se_vende_por_racion %} por {{ producto.nombre_racion }}{% endif %}.
+        La fila destacada es la opción más barata.
+    </p>
+
+    <div class="tabla-marco">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Proveedor</th>
+                    <th>Condiciones de pago</th>
+                    {% if ver_finanzas %}
+                        <th class="num">Precio{% if producto.se_vende_por_racion %} del envase{% endif %}</th>
+                        {% if producto.se_vende_por_racion %}
+                            <th class="num">Coste por {{ producto.nombre_racion }}</th>
+                        {% endif %}
+                        <th class="num">Diferencia</th>
+                        <th class="num">Margen resultante</th>
+                    {% endif %}
+                    <th class="num">Plazo</th>
+                    <th class="num">Pedido mínimo</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in comparacion %}
+                <tr class="{% if fila.es_mejor_precio %}fila-destacada{% endif %}">
+                    <td>
+                        <a href="{{ url_for('proveedores.detalle', proveedor_id=fila.proveedor.id) }}">
+                            <strong>{{ fila.proveedor.nombre }}</strong>
+                        </a>
+                    </td>
+                    <td class="texto-tenue">{{ fila.proveedor.condiciones_pago or '—' }}</td>
+                    {% if ver_finanzas %}
+                        <td class="num"><strong>{{ fila.precio|euros }}</strong></td>
+                        {% if producto.se_vende_por_racion %}
+                            <td class="num">{{ fila.coste_unidad|euros }}</td>
+                        {% endif %}
+                        <td class="num">
+                            {% if fila.es_mejor_precio %}
+                                {{ etiqueta('Mejor precio', 'exito') }}
+                            {% else %}
+                                <span class="valor-peligro">
+                                    +{{ fila.diferencia|euros }} ({{ fila.porcentaje_extra|porcentaje }})
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="num">{{ fila.margen|porcentaje }}</td>
+                    {% endif %}
+                    <td class="num">{{ fila.asociacion.plazo_entrega_dias }} d</td>
+                    <td class="num">{{ fila.asociacion.cantidad_minima_pedido }}</td>
+                    <td>{% if fila.asociacion.es_preferente %}{{ etiqueta('Preferente', 'info') }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if ver_finanzas and comparacion|length > 1 %}
+        {% set peor = comparacion|last %}
+        <div class="nota-informativa">
+            Comprando a <strong>{{ comparacion[0].proveedor.nombre }}</strong> en lugar de a
+            <strong>{{ peor.proveedor.nombre }}</strong> se ahorran
+            <strong>{{ peor.diferencia|euros }}</strong>
+            por {% if producto.se_vende_por_racion %}envase{% else %}unidad{% endif %}
+            ({{ peor.porcentaje_extra|porcentaje }} menos de coste).
+        </div>
+    {% endif %}
+</div>
+{% elif producto %}
+    <div class="tarjeta">
+        <div class="vacio">
+            <span class="vacio-icono">🏭</span>
+            <p class="texto-tenue">Este producto no tiene proveedores asociados.</p>
+        </div>
+    </div>
+{% endif %}
+
+{# --- Ranking general de proveedores --------------------------------- #}
+<div class="tarjeta">
+    <h2>Ranking de proveedores</h2>
+    <p class="texto-tenue">Ordenados por volumen de compra acumulado.</p>
+
+    <div class="tabla-marco">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Proveedor</th>
+                    <th class="num">Productos</th>
+                    <th class="num">Pedidos</th>
+                    {% if ver_finanzas %}
+                        <th class="num">Importe comprado</th>
+                        <th class="num">Margen medio</th>
+                    {% endif %}
+                    <th class="num">Plazo real</th>
+                    <th class="num">Puntualidad</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in ranking %}
+                <tr>
+                    <td class="texto-tenue">{{ loop.index }}</td>
+                    <td>
+                        <a href="{{ url_for('proveedores.detalle', proveedor_id=fila.proveedor.id) }}">
+                            {{ fila.proveedor.nombre }}
+                        </a>
+                    </td>
+                    <td class="num">{{ fila.num_productos }}</td>
+                    <td class="num">{{ fila.num_compras }}</td>
+                    {% if ver_finanzas %}
+                        <td class="num">{{ fila.total_comprado|euros }}</td>
+                        <td class="num">
+                            {% if fila.margen_medio is not none %}{{ fila.margen_medio|porcentaje }}{% else %}—{% endif %}
+                        </td>
+                    {% endif %}
+                    <td class="num">
+                        {% if fila.plazo_medio_real is not none %}
+                            {{ '%.1f'|format(fila.plazo_medio_real)|replace('.', ',') }} d
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="num">
+                        {% if fila.puntualidad is not none %}
+                            {% if fila.puntualidad >= 90 %}{{ etiqueta(fila.puntualidad|porcentaje(0), 'exito') }}
+                            {% elif fila.puntualidad >= 70 %}{{ etiqueta(fila.puntualidad|porcentaje(0), 'aviso') }}
+                            {% else %}{{ etiqueta(fila.puntualidad|porcentaje(0), 'peligro') }}{% endif %}
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

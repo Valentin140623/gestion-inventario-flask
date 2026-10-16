@@ -1,0 +1,36 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import campo, campo_check %}
+
+{% block acciones %}
+    <a href="{{ url_for('proveedores.detalle', proveedor_id=proveedor.id) }}" class="boton">Volver</a>
+{% endblock %}
+
+{% block cuerpo %}
+<div class="tarjeta tarjeta-formulario">
+    <p class="texto-tenue">
+        Indica a qué precio y con qué condiciones nos suministra
+        <strong>{{ proveedor.nombre }}</strong> este producto. Estos datos son los
+        que permiten comparar proveedores entre sí.
+    </p>
+
+    <form method="POST" novalidate>
+        {{ formulario.hidden_tag() }}
+
+        {{ campo(formulario.producto_id) }}
+
+        <div class="form-rejilla">
+            {{ campo(formulario.precio_coste, ayuda="Precio al que nos lo vende este proveedor.") }}
+            {{ campo(formulario.referencia_proveedor, ayuda="Código con el que lo identifica en su catálogo.") }}
+            {{ campo(formulario.plazo_entrega_dias) }}
+            {{ campo(formulario.cantidad_minima_pedido) }}
+        </div>
+
+        {{ campo_check(formulario.es_preferente) }}
+
+        <div class="form-acciones">
+            {{ formulario.submit(class="boton boton-principal") }}
+            <a href="{{ url_for('proveedores.detalle', proveedor_id=proveedor.id) }}" class="boton">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

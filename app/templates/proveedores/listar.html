@@ -1,0 +1,87 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import etiqueta %}
+
+{% set ver_finanzas = current_user.tiene_permiso('analisis.financiero') %}
+
+{% block subtitulo %}
+    <p class="subtitulo">{{ datos|length }} proveedor(es)</p>
+{% endblock %}
+
+{% block acciones %}
+    <a href="{{ url_for('proveedores.comparativa') }}" class="boton">Comparativa de precios</a>
+    {% if current_user.tiene_permiso('proveedores.editar') %}
+        <a href="{{ url_for('proveedores.crear') }}" class="boton boton-principal">+ Nuevo proveedor</a>
+    {% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+
+<form method="get" class="filtros">
+    <input type="search" name="busqueda" class="entrada filtro-busqueda"
+           placeholder="Buscar por nombre o CIF..." value="{{ busqueda }}">
+    <button type="submit" class="boton boton-principal">Buscar</button>
+    <a href="{{ url_for('proveedores.listar') }}" class="boton">Limpiar</a>
+</form>
+
+<div class="tarjeta">
+    {% if datos %}
+    <div class="tabla-marco">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Proveedor</th>
+                    <th>CIF</th>
+                    <th>Contacto</th>
+                    <th>Condiciones de pago</th>
+                    <th class="num">Productos</th>
+                    <th class="num">Compras</th>
+                    {% if ver_finanzas %}<th class="num">Importe</th>{% endif %}
+                    <th class="num">Puntualidad</th>
+                    <th>Estado</th>
+                    <th class="acciones"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for proveedor, m in datos %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('proveedores.detalle', proveedor_id=proveedor.id) }}">
+                            <strong>{{ proveedor.nombre }}</strong>
+                        </a>
+                    </td>
+                    <td><code class="referencia">{{ proveedor.cif }}</code></td>
+                    <td class="texto-tenue">{{ proveedor.persona_contacto or '—' }}</td>
+                    <td class="texto-tenue">{{ proveedor.condiciones_pago or '—' }}</td>
+                    <td class="num">{{ m.num_productos }}</td>
+                    <td class="num">{{ m.num_compras }}</td>
+                    {% if ver_finanzas %}
+                        <td class="num">{{ m.total_comprado|euros }}</td>
+                    {% endif %}
+                    <td class="num">
+                        {% if m.puntualidad is not none %}
+                            {% if m.puntualidad >= 90 %}{{ etiqueta(m.puntualidad|porcentaje(0), 'exito') }}
+                            {% elif m.puntualidad >= 70 %}{{ etiqueta(m.puntualidad|porcentaje(0), 'aviso') }}
+                            {% else %}{{ etiqueta(m.puntualidad|porcentaje(0), 'peligro') }}{% endif %}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if proveedor.activo %}{{ etiqueta('Activo', 'exito') }}
+                        {% else %}{{ etiqueta('Inactivo', 'neutro') }}{% endif %}
+                    </td>
+                    <td class="acciones">
+                        <a href="{{ url_for('proveedores.detalle', proveedor_id=proveedor.id) }}"
+                           class="boton boton-pequeno">Ver</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="vacio">
+        <span class="vacio-icono">🏭</span>
+        <p><strong>No hay proveedores registrados.</strong></p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
