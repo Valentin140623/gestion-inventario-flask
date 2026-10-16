@@ -1,0 +1,93 @@
+{% extends "base_app.html" %}
+{% set ver_finanzas = current_user.tiene_permiso('analisis.financiero') %}
+
+{% block encabezado %}Venta {{ venta.numero }}{% endblock %}
+
+{% block subtitulo %}
+    <p class="subtitulo">{{ venta.fecha|fecha(True) }} · Registrada por {{ venta.usuario.nombre }}</p>
+{% endblock %}
+
+{% block acciones %}
+    <a href="{{ url_for('ventas.listar') }}" class="boton">Volver</a>
+    {% if current_user.tiene_permiso('ventas.registrar') %}
+        <form method="POST" action="{{ url_for('ventas.anular', venta_id=venta.id) }}" class="form-inline"
+              onsubmit="return confirm('¿Anular esta venta? El stock volverá al almacén.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="boton boton-peligro">Anular venta</button>
+        </form>
+    {% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+
+<div class="rejilla">
+    <div class="indicador">
+        <span class="indicador-etiqueta">Total facturado</span>
+        <span class="indicador-valor">{{ venta.total|euros }}</span>
+        <span class="indicador-pie">{{ venta.num_articulos }} artículo(s)</span>
+    </div>
+    {% if ver_finanzas %}
+    <div class="indicador">
+        <span class="indicador-etiqueta">Coste de la mercancía</span>
+        <span class="indicador-valor">{{ venta.total_coste|euros }}</span>
+        <span class="indicador-pie">precio de compra</span>
+    </div>
+    <div class="indicador">
+        <span class="indicador-etiqueta">Beneficio</span>
+        <span class="indicador-valor valor-exito">{{ venta.beneficio|euros }}</span>
+        <span class="indicador-pie">{{ venta.margen_porcentual|porcentaje }} de margen</span>
+    </div>
+    {% endif %}
+    <div class="indicador">
+        <span class="indicador-etiqueta">Cliente</span>
+        <span class="indicador-valor indicador-texto">{{ venta.cliente or '—' }}</span>
+        <span class="indicador-pie">{{ venta.observaciones or 'Sin observaciones' }}</span>
+    </div>
+</div>
+
+<div class="tarjeta">
+    <h2>Líneas de la venta</h2>
+    <div class="tabla-marco">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Referencia</th>
+                    <th>Producto</th>
+                    <th class="num">Cantidad</th>
+                    <th class="num">Precio unit.</th>
+                    {% if ver_finanzas %}
+                        <th class="num">Coste unit.</th>
+                        <th class="num">Margen</th>
+                    {% endif %}
+                    <th class="num">Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in venta.lineas %}
+                <tr>
+                    <td><code class="referencia">{{ l.producto.referencia }}</code></td>
+                    <td><a href="{{ url_for('productos.detalle', producto_id=l.producto.id) }}">{{ l.producto.nombre }}</a></td>
+                    <td class="num">{{ l.cantidad }}</td>
+                    <td class="num">{{ l.precio_unitario|euros }}</td>
+                    {% if ver_finanzas %}
+                        <td class="num">{{ l.coste_unitario|euros }}</td>
+                        <td class="num">{{ l.margen_porcentual|porcentaje }}</td>
+                    {% endif %}
+                    <td class="num"><strong>{{ l.subtotal|euros }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="{% if ver_finanzas %}6{% else %}4{% endif %}">TOTAL</th>
+                    <th class="num">{{ venta.total|euros }}</th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    <p class="texto-tenue nota-pie">
+        El precio y el coste se guardaron en el momento de la venta, por lo que
+        estos importes no cambian aunque después se modifiquen las tarifas del producto.
+    </p>
+</div>
+{% endblock %}

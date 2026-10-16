@@ -1,0 +1,105 @@
+{% extends "base_app.html" %}
+{% set ver_finanzas = current_user.tiene_permiso('analisis.financiero') %}
+
+{% block subtitulo %}
+    <p class="subtitulo">{{ paginacion.total }} venta(s)</p>
+{% endblock %}
+
+{% block acciones %}
+    {% if current_user.tiene_permiso('ventas.registrar') %}
+        <a href="{{ url_for('ventas.crear') }}" class="boton boton-principal">+ Nueva venta</a>
+    {% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+
+<form method="get" class="filtros">
+    <input type="date" name="desde" class="entrada" value="{{ filtros.desde }}" title="Desde">
+    <input type="date" name="hasta" class="entrada" value="{{ filtros.hasta }}" title="Hasta">
+    <input type="search" name="cliente" class="entrada filtro-busqueda"
+           placeholder="Buscar por cliente..." value="{{ filtros.cliente }}">
+    <button type="submit" class="boton boton-principal">Filtrar</button>
+    <a href="{{ url_for('ventas.listar') }}" class="boton">Limpiar</a>
+</form>
+
+<div class="rejilla">
+    <div class="indicador">
+        <span class="indicador-etiqueta">Ventas</span>
+        <span class="indicador-valor">{{ paginacion.total }}</span>
+        <span class="indicador-pie">en el periodo seleccionado</span>
+    </div>
+    <div class="indicador">
+        <span class="indicador-etiqueta">Facturación</span>
+        <span class="indicador-valor">{{ total_facturado|euros }}</span>
+        <span class="indicador-pie">importe total</span>
+    </div>
+    {% if ver_finanzas %}
+    <div class="indicador">
+        <span class="indicador-etiqueta">Beneficio</span>
+        <span class="indicador-valor valor-exito">{{ total_beneficio|euros }}</span>
+        <span class="indicador-pie">
+            {% if total_facturado %}{{ (total_beneficio / total_facturado * 100)|porcentaje }} de margen{% endif %}
+        </span>
+    </div>
+    {% endif %}
+</div>
+
+<div class="tarjeta">
+    {% if ventas %}
+    <div class="tabla-marco">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Número</th>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th class="num">Artículos</th>
+                    <th class="num">Total</th>
+                    {% if ver_finanzas %}<th class="num">Beneficio</th>{% endif %}
+                    <th>Registrada por</th>
+                    <th class="acciones"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in ventas %}
+                <tr>
+                    <td><code class="referencia">{{ v.numero }}</code></td>
+                    <td>{{ v.fecha|fecha(True) }}</td>
+                    <td>{{ v.cliente or '—' }}</td>
+                    <td class="num">{{ v.num_articulos }}</td>
+                    <td class="num"><strong>{{ v.total|euros }}</strong></td>
+                    {% if ver_finanzas %}
+                        <td class="num valor-exito">{{ v.beneficio|euros }}</td>
+                    {% endif %}
+                    <td class="texto-tenue">{{ v.usuario.nombre }}</td>
+                    <td class="acciones">
+                        <a href="{{ url_for('ventas.detalle', venta_id=v.id) }}" class="boton boton-pequeno">Ver</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if paginacion.pages > 1 %}
+    <div class="paginacion">
+        {% for numero in paginacion.iter_pages() %}
+            {% if numero %}
+                <a href="{{ url_for('ventas.listar', pagina=numero, desde=filtros.desde,
+                                    hasta=filtros.hasta, cliente=filtros.cliente) }}"
+                   class="pagina {% if numero == paginacion.page %}activa{% endif %}">{{ numero }}</a>
+            {% else %}
+                <span class="pagina-salto">…</span>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="vacio">
+        <span class="vacio-icono">🧾</span>
+        <p><strong>No hay ventas registradas en este periodo.</strong></p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
