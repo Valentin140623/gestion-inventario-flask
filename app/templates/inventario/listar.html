@@ -1,0 +1,105 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import etiqueta %}
+
+{% block subtitulo %}
+    <p class="subtitulo">{{ paginacion.total }} movimiento(s) registrado(s)</p>
+{% endblock %}
+
+{% block acciones %}
+    {% if current_user.tiene_permiso('inventario.editar') %}
+        <a href="{{ url_for('inventario.nuevo_movimiento') }}" class="boton boton-principal">+ Nuevo movimiento</a>
+    {% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+
+<form method="get" class="filtros">
+    <select name="producto" class="entrada filtro-busqueda">
+        <option value="0">Todos los productos</option>
+        {% for p in productos %}
+            <option value="{{ p.id }}" {% if filtros.producto == p.id %}selected{% endif %}>
+                {{ p.referencia }} · {{ p.nombre }}
+            </option>
+        {% endfor %}
+    </select>
+    <select name="tipo" class="entrada">
+        <option value="">Todos los tipos</option>
+        <option value="ENTRADA" {% if filtros.tipo == 'ENTRADA' %}selected{% endif %}>Entradas</option>
+        <option value="SALIDA"  {% if filtros.tipo == 'SALIDA'  %}selected{% endif %}>Salidas</option>
+        <option value="AJUSTE"  {% if filtros.tipo == 'AJUSTE'  %}selected{% endif %}>Ajustes</option>
+    </select>
+    <input type="date" name="desde" class="entrada" value="{{ filtros.desde }}" title="Desde">
+    <input type="date" name="hasta" class="entrada" value="{{ filtros.hasta }}" title="Hasta">
+    <button type="submit" class="boton boton-principal">Filtrar</button>
+    <a href="{{ url_for('inventario.listar') }}" class="boton">Limpiar</a>
+</form>
+
+<div class="tarjeta">
+    {% if movimientos %}
+    <div class="tabla-marco">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Producto</th>
+                    <th>Tipo</th>
+                    <th class="num">Cantidad</th>
+                    <th class="num">Stock resultante</th>
+                    <th>Motivo</th>
+                    <th>Documento</th>
+                    <th>Usuario</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in movimientos %}
+                <tr>
+                    <td>{{ m.fecha|fecha(True) }}</td>
+                    <td>
+                        <a href="{{ url_for('productos.detalle', producto_id=m.producto.id) }}">
+                            {{ m.producto.nombre }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if m.tipo.name == 'ENTRADA' %}{{ etiqueta('Entrada', 'exito') }}
+                        {% elif m.tipo.name == 'SALIDA' %}{{ etiqueta('Salida', 'peligro') }}
+                        {% else %}{{ etiqueta('Ajuste', 'info') }}{% endif %}
+                    </td>
+                    <td class="num {% if m.cantidad > 0 %}valor-exito{% else %}valor-peligro{% endif %}">
+                        {% if m.cantidad > 0 %}+{% endif %}{{ m.cantidad }}
+                    </td>
+                    <td class="num"><strong>{{ m.stock_resultante }}</strong></td>
+                    <td class="texto-tenue">{{ m.motivo or '—' }}</td>
+                    <td>
+                        {% if m.documento_referencia %}
+                            <code class="referencia">{{ m.documento_referencia }}</code>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="texto-tenue">{{ m.usuario.nombre }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if paginacion.pages > 1 %}
+    <div class="paginacion">
+        {% for numero in paginacion.iter_pages() %}
+            {% if numero %}
+                <a href="{{ url_for('inventario.listar', pagina=numero, producto=filtros.producto,
+                                    tipo=filtros.tipo, desde=filtros.desde, hasta=filtros.hasta) }}"
+                   class="pagina {% if numero == paginacion.page %}activa{% endif %}">{{ numero }}</a>
+            {% else %}
+                <span class="pagina-salto">…</span>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="vacio">
+        <span class="vacio-icono">🔄</span>
+        <p><strong>No hay movimientos con esos criterios.</strong></p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

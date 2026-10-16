@@ -1,0 +1,85 @@
+{% extends "base_app.html" %}
+
+{% block acciones %}
+    <a href="{{ url_for('inventario.listar') }}" class="boton">Volver al historial</a>
+{% endblock %}
+
+{% block cuerpo %}
+<div class="tarjeta tarjeta-formulario">
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="campo">
+            <label for="producto_id">Producto</label>
+            <select id="producto_id" name="producto_id" class="entrada" required onchange="mostrarStock()">
+                <option value="">— Selecciona un producto —</option>
+                {% for p in productos %}
+                    <option value="{{ p.id }}" data-stock="{{ p.stock_actual }}">
+                        {{ p.referencia }} · {{ p.nombre }} ({{ p.stock_actual }} ud.)
+                    </option>
+                {% endfor %}
+            </select>
+            <span class="campo-ayuda" id="info-stock"></span>
+        </div>
+
+        <div class="campo">
+            <label for="operacion">Tipo de movimiento</label>
+            <select id="operacion" name="operacion" class="entrada" required onchange="cambiarTipo()">
+                <option value="entrada">Entrada — llega mercancía al almacén</option>
+                <option value="salida">Salida — sale mercancía (rotura, devolución...)</option>
+                <option value="ajuste">Ajuste — corregir tras un inventario físico</option>
+            </select>
+        </div>
+
+        <div class="campo">
+            <label for="cantidad" id="etiqueta-cantidad">Unidades que entran</label>
+            <input type="number" id="cantidad" name="cantidad" class="entrada" min="0" value="1" required>
+            <span class="campo-ayuda" id="ayuda-cantidad">Número de unidades que se añaden al stock.</span>
+        </div>
+
+        <div class="campo">
+            <label for="motivo">Motivo</label>
+            <input type="text" id="motivo" name="motivo" class="entrada"
+                   placeholder="Devolución de cliente, rotura, recuento anual...">
+        </div>
+
+        <div class="form-acciones">
+            <button type="submit" class="boton boton-principal">Registrar movimiento</button>
+            <a href="{{ url_for('inventario.listar') }}" class="boton">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// En un ajuste, la cifra que se pide no son las unidades que se suman o
+// restan, sino cuántas hay REALMENTE en la estantería. El sistema calcula
+// solo la diferencia. Cambiamos las etiquetas para que quede claro.
+function cambiarTipo() {
+    const tipo = document.getElementById('operacion').value;
+    const etiqueta = document.getElementById('etiqueta-cantidad');
+    const ayuda = document.getElementById('ayuda-cantidad');
+
+    if (tipo === 'entrada') {
+        etiqueta.textContent = 'Unidades que entran';
+        ayuda.textContent = 'Número de unidades que se añaden al stock.';
+    } else if (tipo === 'salida') {
+        etiqueta.textContent = 'Unidades que salen';
+        ayuda.textContent = 'Número de unidades que se retiran del stock.';
+    } else {
+        etiqueta.textContent = 'Stock real contado';
+        ayuda.textContent = 'Unidades que hay realmente en el almacén. El sistema calculará la diferencia.';
+    }
+}
+
+function mostrarStock() {
+    const select = document.getElementById('producto_id');
+    const opcion = select.options[select.selectedIndex];
+    const info = document.getElementById('info-stock');
+    info.textContent = opcion.value ? 'Stock registrado actualmente: ' + opcion.dataset.stock + ' unidades.' : '';
+}
+
+cambiarTipo();
+</script>
+{% endblock %}
