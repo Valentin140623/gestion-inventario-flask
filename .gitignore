@@ -22,3 +22,6 @@ instance/
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Registro del script de capturas
+docs/capturas_log.txt

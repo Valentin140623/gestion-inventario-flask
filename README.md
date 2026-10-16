@@ -23,6 +23,26 @@ Proyecto final del curso de Programación en Python de Tokio School.
 - **Roles y permisos.** Administrador, responsable de almacén y responsable
   financiero, cada uno con acceso solo a lo que necesita.
 
+## Capturas
+
+| Panel de control | Carta e inventario |
+|---|---|
+| ![Panel de control del administrador](docs/capturas/02-panel-admin.png) | ![Listado de productos con margen y stock](docs/capturas/07-listado-productos.png) |
+| **Comparativa de proveedores** | **Análisis de ventas y rentabilidad** |
+| ![Comparativa de precios y plazos entre proveedores](docs/capturas/18-comparativa.png) | ![Panel de análisis](docs/capturas/21-analisis.png) |
+
+El responsable de almacén no ve costes ni márgenes, y el acceso a zonas sin
+permiso devuelve un 403:
+
+| Productos vistos desde almacén | Acceso denegado |
+|---|---|
+| ![Listado de productos sin costes para el rol de almacén](docs/capturas/08-productos-almacen.png) | ![Error 403 de acceso denegado](docs/capturas/06-acceso-denegado.png) |
+
+Las 23 capturas están en [`docs/capturas/`](docs/capturas). Se generan solas
+con `python docs/generar_capturas.py`, que crea una base de datos temporal con
+los datos de demostración, arranca la aplicación y recorre cada pantalla con
+Playwright.
+
 ## Tecnologías
 
 Python 3.12 · Flask · SQLAlchemy · SQLite · Flask-Login · Flask-WTF (CSRF y
@@ -110,6 +130,7 @@ app/
 ├── utils/           Decoradores de permisos y menú
 ├── templates/       Plantillas Jinja2
 └── static/css/      Hoja de estilos
+docs/                Capturas y script que las genera
 run.py               Punto de entrada
 ```
 
