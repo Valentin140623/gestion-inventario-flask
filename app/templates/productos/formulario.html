@@ -1,0 +1,170 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import campo, campo_check %}
+
+{% block acciones %}
+    <a href="{{ url_for('productos.listar') }}" class="boton">Volver al listado</a>
+{% endblock %}
+
+{% block cuerpo %}
+<div class="tarjeta tarjeta-formulario">
+    <form method="POST" novalidate>
+        {{ formulario.hidden_tag() }}
+
+        <h3>Identificación</h3>
+        <div class="form-rejilla">
+            {{ campo(formulario.referencia, ayuda="Código interno único. Se guarda en mayúsculas.") }}
+            {{ campo(formulario.categoria_id) }}
+        </div>
+        {{ campo(formulario.nombre) }}
+        {{ campo(formulario.descripcion) }}
+
+        <h3>Cómo se vende</h3>
+        {{ campo_check(formulario.se_vende_por_racion) }}
+
+        {# Bloque de venta por ración: solo tiene sentido rellenarlo si se ha
+           marcado la casilla de arriba. Se muestra u oculta con JavaScript
+           (ver el bloque de scripts al final), pero también funciona sin él:
+           si el usuario marca la casilla y el navegador no ejecuta JS, los
+           campos igualmente están en el formulario y se pueden rellenar. #}
+        <div id="bloque-racion" class="form-rejilla">
+            {{ campo(formulario.nombre_racion, ayuda="Ej: caña, copa, chupito.") }}
+            {{ campo(formulario.contenido_envase_ml, ayuda="Ej: 30000 para un barril de 30 L.") }}
+            {{ campo(formulario.tamano_racion_ml, ayuda="Ej: 300 para una caña de 0,3 L.") }}
+
+            {% if formulario.precio_envase is not none %}
+                {{ campo(formulario.precio_envase, ayuda="Lo que cuesta el barril o la botella entera.") }}
+            {% endif %}
+        </div>
+
+        {% if formulario.precio_envase is not none %}
+            <div class="nota-informativa" id="calculo-racion" hidden>
+                Con estos datos, cada <span id="txt-racion">ración</span> costará
+                <strong id="txt-coste-racion">—</strong>.
+                Salen <strong id="txt-num-raciones">—</strong> raciones de cada envase.
+            </div>
+        {% elif formulario.coste_adquisicion is none %}
+            <div class="nota-informativa">
+                El precio del envase solo puede consultarlo y modificarlo un
+                usuario con permisos financieros.
+            </div>
+        {% endif %}
+
+        <h3>Precios</h3>
+        <div class="form-rejilla">
+            {{ campo(formulario.precio_venta, ayuda="Precio al que se le cobra al cliente (por unidad o por ración).") }}
+
+            {# El campo del coste solo existe si el usuario tiene permiso
+               financiero: la vista lo elimina del formulario con "del".
+               Comprobamos su existencia antes de pintarlo. Además, cuando el
+               producto se vende por ración este campo no se rellena a mano:
+               se calcula solo arriba, así que aquí se deja de lectura. #}
+            {% if formulario.coste_adquisicion is not none %}
+                {{ campo(formulario.coste_adquisicion, ayuda="Se calcula solo si el producto se vende por ración.") }}
+            {% endif %}
+        </div>
+
+        {% if formulario.coste_adquisicion is none %}
+            <div class="nota-informativa">
+                El coste de adquisición solo puede consultarlo y modificarlo un
+                usuario con permisos financieros. El valor actual se conserva sin cambios.
+            </div>
+        {% endif %}
+
+        <h3>Almacén</h3>
+        <div class="form-rejilla">
+            {% if formulario.stock_inicial is not none %}
+                {{ campo(formulario.stock_inicial, ayuda="En raciones, si el producto se vende por copas. Se registrará como entrada en el historial.") }}
+            {% endif %}
+            {{ campo(formulario.stock_minimo, ayuda="Por debajo de este valor se avisa de reposición.") }}
+            {{ campo(formulario.ubicacion_almacen) }}
+        </div>
+
+        {% if es_edicion %}
+            <div class="nota-informativa">
+                El stock actual ({{ producto.stock_actual }} unidades) no se edita desde aquí.
+                Para modificarlo hay que registrar un movimiento de inventario, de modo que
+                quede constancia de quién lo hizo y por qué.
+            </div>
+        {% endif %}
+
+        {{ campo_check(formulario.activo) }}
+
+        <div class="form-acciones">
+            {{ formulario.submit(class="boton boton-principal") }}
+            <a href="{{ url_for('productos.listar') }}" class="boton">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Muestra u oculta el bloque de "venta por ración" según la casilla, y
+// calcula en pantalla el coste por copa mientras el usuario escribe. Es solo
+// una ayuda visual: el cálculo que de verdad se guarda lo hace Python en el
+// servidor (routes/productos.py, función _calcular_coste), así que aunque
+// alguien manipulara este JavaScript no podría falsear el coste guardado.
+const casillaRacion = document.getElementById('se_vende_por_racion');
+const bloqueRacion = document.getElementById('bloque-racion');
+const avisoCalculo = document.getElementById('calculo-racion');
+
+const campoContenido = document.getElementById('contenido_envase_ml');
+const campoTamano = document.getElementById('tamano_racion_ml');
+const campoPrecio = document.getElementById('precio_envase');
+const campoNombreRacion = document.getElementById('nombre_racion');
+const campoCosteFijo = document.getElementById('coste_adquisicion');
+
+function actualizarVisibilidad() {
+    const activo = casillaRacion.checked;
+    bloqueRacion.style.display = activo ? '' : 'none';
+
+    // Cuando se vende por ración, el coste ya no se escribe a mano: se
+    // calcula solo, así que se bloquea para que no lleve a confusión.
+    if (campoCosteFijo) {
+        campoCosteFijo.readOnly = activo;
+        campoCosteFijo.style.background = activo ? '#f1f5f9' : '';
+    }
+
+    if (activo) {
+        calcular();
+    } else if (avisoCalculo) {
+        avisoCalculo.hidden = true;
+    }
+}
+
+function calcular() {
+    if (!avisoCalculo || !campoPrecio) return;
+
+    const contenido = parseFloat(campoContenido.value);
+    const tamano = parseFloat(campoTamano.value);
+    const precio = parseFloat(campoPrecio.value);
+
+    if (!contenido || !tamano || !precio) {
+        avisoCalculo.hidden = true;
+        return;
+    }
+
+    const numRaciones = contenido / tamano;
+    const costeRacion = precio / numRaciones;
+
+    document.getElementById('txt-racion').textContent = campoNombreRacion.value || 'ración';
+    document.getElementById('txt-coste-racion').textContent = costeRacion.toFixed(2).replace('.', ',') + ' €';
+    document.getElementById('txt-num-raciones').textContent = numRaciones.toFixed(1).replace('.', ',');
+    avisoCalculo.hidden = false;
+
+    // Reflejamos el cálculo en el campo de coste, solo a título informativo
+    // (está bloqueado para editar, pero así se ve el número real).
+    if (campoCosteFijo) {
+        campoCosteFijo.value = costeRacion.toFixed(2);
+    }
+}
+
+if (casillaRacion) {
+    casillaRacion.addEventListener('change', actualizarVisibilidad);
+    [campoContenido, campoTamano, campoPrecio, campoNombreRacion].forEach(function (campo) {
+        if (campo) campo.addEventListener('input', calcular);
+    });
+    actualizarVisibilidad();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import etiqueta %}
+
+{% set puede_editar = current_user.tiene_permiso('productos.editar') %}
+
+{% block subtitulo %}
+    <p class="subtitulo">{{ categorias|length }} categoría(s) definida(s)</p>
+{% endblock %}
+
+{% block acciones %}
+    <a href="{{ url_for('productos.listar') }}" class="boton">Volver a productos</a>
+    {% if puede_editar %}
+        <a href="{{ url_for('productos.crear_categoria') }}" class="boton boton-principal">+ Nueva categoría</a>
+    {% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+<div class="tarjeta">
+    {% if categorias %}
+    <div class="tabla-marco">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Categoría</th>
+                    <th>Descripción</th>
+                    <th class="num">Productos</th>
+                    <th class="acciones">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in categorias %}
+                <tr>
+                    <td><strong>{{ c.nombre }}</strong></td>
+                    <td class="texto-tenue">{{ c.descripcion or '—' }}</td>
+                    {# .count() ejecuta un COUNT en la base de datos gracias a
+                       que la relación se declaró con lazy="dynamic". #}
+                    <td class="num">{{ c.productos.count() }}</td>
+                    <td class="acciones">
+                        {% if puede_editar %}
+                            <a href="{{ url_for('productos.editar_categoria', categoria_id=c.id) }}"
+                               class="boton boton-pequeno">Editar</a>
+                            <form method="POST" class="form-inline"
+                                  action="{{ url_for('productos.eliminar_categoria', categoria_id=c.id) }}"
+                                  onsubmit="return confirm('¿Eliminar la categoría {{ c.nombre }}?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="boton boton-pequeno boton-peligro">Eliminar</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="vacio">
+        <span class="vacio-icono">🗂️</span>
+        <p><strong>Todavía no hay categorías.</strong></p>
+        <p class="texto-tenue">Las categorías agrupan los productos por familias y son obligatorias para darlos de alta.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

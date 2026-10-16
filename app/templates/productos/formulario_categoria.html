@@ -1,0 +1,20 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import campo %}
+
+{% block acciones %}
+    <a href="{{ url_for('productos.listar_categorias') }}" class="boton">Volver</a>
+{% endblock %}
+
+{% block cuerpo %}
+<div class="tarjeta tarjeta-formulario tarjeta-estrecha">
+    <form method="POST" novalidate>
+        {{ formulario.hidden_tag() }}
+        {{ campo(formulario.nombre) }}
+        {{ campo(formulario.descripcion) }}
+        <div class="form-acciones">
+            {{ formulario.submit(class="boton boton-principal") }}
+            <a href="{{ url_for('productos.listar_categorias') }}" class="boton">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

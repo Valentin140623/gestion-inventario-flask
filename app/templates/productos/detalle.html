@@ -1,0 +1,173 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import etiqueta %}
+
+{% set ver_finanzas = current_user.tiene_permiso('analisis.financiero') %}
+{% set puede_editar = current_user.tiene_permiso('productos.editar') %}
+
+{% block encabezado %}{{ producto.nombre }}{% endblock %}
+
+{% block subtitulo %}
+    <p class="subtitulo">
+        <code class="referencia">{{ producto.referencia }}</code>
+        · {{ producto.categoria.nombre }}
+        {% if not producto.activo %}{{ etiqueta('De baja', 'neutro') }}{% endif %}
+    </p>
+{% endblock %}
+
+{% block acciones %}
+    <a href="{{ url_for('productos.listar') }}" class="boton">Volver</a>
+    {% if puede_editar %}
+        <a href="{{ url_for('productos.editar', producto_id=producto.id) }}" class="boton">Editar</a>
+
+        {# Formulario en línea para una acción que modifica datos.
+           Al no usar un objeto FlaskForm, el token CSRF hay que insertarlo a
+           mano: csrf_token() está disponible en todas las plantillas gracias
+           a la extensión CSRFProtect. Sin él, la petición sería rechazada. #}
+        <form method="POST" action="{{ url_for('productos.cambiar_estado', producto_id=producto.id) }}" class="form-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="boton">
+                {% if producto.activo %}Dar de baja{% else %}Reactivar{% endif %}
+            </button>
+        </form>
+    {% endif %}
+
+    {% if current_user.tiene_permiso('usuarios.gestionar') %}
+        <form method="POST" action="{{ url_for('productos.eliminar', producto_id=producto.id) }}" class="form-inline"
+              {# confirm() detiene el envío si el usuario cancela. Es una red de
+                 seguridad de la interfaz, no una medida de seguridad real: la
+                 comprobación que cuenta (que no tenga histórico) está en la vista. #}
+              onsubmit="return confirm('¿Eliminar definitivamente este producto? Esta acción no se puede deshacer.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="boton boton-peligro">Eliminar</button>
+        </form>
+    {% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+
+{# --- Indicadores rápidos --------------------------------------------- #}
+<div class="rejilla">
+    <div class="indicador">
+        <span class="indicador-etiqueta">Stock actual</span>
+        <span class="indicador-valor {% if producto.stock_actual == 0 %}valor-peligro{% elif producto.necesita_reposicion %}valor-aviso{% endif %}">
+            {{ producto.stock_actual }}
+        </span>
+        <span class="indicador-pie">
+            {{ producto.nombre_unidad_venta }}(s) · mínimo {{ producto.stock_minimo }}
+        </span>
+    </div>
+
+    <div class="indicador">
+        <span class="indicador-etiqueta">Precio de venta</span>
+        <span class="indicador-valor">{{ producto.precio_venta|euros }}</span>
+        <span class="indicador-pie">Sin IVA</span>
+    </div>
+
+    {% if ver_finanzas %}
+        <div class="indicador">
+            <span class="indicador-etiqueta">Margen unitario</span>
+            <span class="indicador-valor {% if producto.margen_unitario < 0 %}valor-peligro{% endif %}">
+                {{ producto.margen_unitario|euros }}
+            </span>
+            <span class="indicador-pie">{{ producto.margen_porcentual|porcentaje }} sobre PVP</span>
+        </div>
+
+        <div class="indicador">
+            <span class="indicador-etiqueta">Valor en almacén</span>
+            <span class="indicador-valor">{{ producto.valor_stock|euros }}</span>
+            <span class="indicador-pie">{{ producto.stock_actual }} {{ producto.nombre_unidad_venta }} × {{ producto.coste_adquisicion|euros }}</span>
+        </div>
+    {% endif %}
+</div>
+
+<div class="dos-columnas">
+
+    {# --- Ficha del producto ------------------------------------------- #}
+    <div class="tarjeta">
+        <h2>Ficha del producto</h2>
+        <dl class="ficha">
+            <dt>Referencia interna</dt>
+            <dd><code class="referencia">{{ producto.referencia }}</code></dd>
+
+            <dt>Categoría</dt>
+            <dd>{{ producto.categoria.nombre }}</dd>
+
+            <dt>Ubicación en almacén</dt>
+            <dd>{{ producto.ubicacion_almacen or '—' }}</dd>
+
+            {% if producto.se_vende_por_racion %}
+                <dt>Se vende por</dt>
+                <dd>
+                    {{ producto.nombre_racion }} de {{ producto.tamano_racion_ml|round|int }} ml
+                    <span class="texto-tenue">
+                        ({{ producto.raciones_por_envase|round(1) }} raciones por envase de
+                        {{ (producto.contenido_envase_ml / 1000)|round(1) }} L)
+                    </span>
+                </dd>
+            {% endif %}
+
+            {% if ver_finanzas %}
+                <dt>Coste {% if producto.se_vende_por_racion %}por {{ producto.nombre_racion }}{% else %}de adquisición{% endif %}</dt>
+                <dd>{{ producto.coste_adquisicion|euros }}</dd>
+            {% endif %}
+
+            <dt>Fecha de alta</dt>
+            <dd>{{ producto.fecha_alta|fecha }}</dd>
+
+            <dt>Estado</dt>
+            <dd>
+                {% if producto.activo %}{{ etiqueta('Activo', 'exito') }}
+                {% else %}{{ etiqueta('De baja', 'neutro') }}{% endif %}
+            </dd>
+
+            {% if producto.descripcion %}
+                <dt>Descripción</dt>
+                <dd>{{ producto.descripcion }}</dd>
+            {% endif %}
+        </dl>
+    </div>
+
+    {# --- Últimos movimientos ------------------------------------------ #}
+    <div class="tarjeta">
+        <h2>Últimos movimientos de inventario</h2>
+        {% if movimientos %}
+            <div class="tabla-marco">
+                <table class="tabla">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Tipo</th>
+                            <th class="num">Cantidad</th>
+                            <th class="num">Stock</th>
+                            <th>Motivo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in movimientos %}
+                        <tr>
+                            <td>{{ m.fecha|fecha(True) }}</td>
+                            <td>
+                                {% if m.tipo.name == 'ENTRADA' %}{{ etiqueta('Entrada', 'exito') }}
+                                {% elif m.tipo.name == 'SALIDA' %}{{ etiqueta('Salida', 'peligro') }}
+                                {% else %}{{ etiqueta('Ajuste', 'info') }}{% endif %}
+                            </td>
+                            {# El signo + para las entradas lo añadimos aquí; el
+                               menos ya viene incluido en el número negativo. #}
+                            <td class="num">{% if m.cantidad > 0 %}+{% endif %}{{ m.cantidad }}</td>
+                            <td class="num">{{ m.stock_resultante }}</td>
+                            <td class="texto-tenue">{{ m.motivo or '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="vacio">
+                <span class="vacio-icono">🔄</span>
+                <p class="texto-tenue">Este producto todavía no tiene movimientos registrados.</p>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

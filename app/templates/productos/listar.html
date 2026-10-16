@@ -1,0 +1,191 @@
+{% extends "base_app.html" %}
+{% from "_macros.html" import etiqueta %}
+
+{# Guardamos en una variable si el usuario puede ver información económica.
+   Lo calculamos una vez arriba en lugar de repetir la llamada en cada celda
+   de la tabla: más legible y una sola comprobación por página. #}
+{% set ver_finanzas = current_user.tiene_permiso('analisis.financiero') %}
+{% set puede_editar = current_user.tiene_permiso('productos.editar') %}
+
+{% block subtitulo %}
+    <p class="subtitulo">{{ paginacion.total }} producto(s) encontrado(s)</p>
+{% endblock %}
+
+{% block acciones %}
+    <a href="{{ url_for('productos.listar_categorias') }}" class="boton">Categorías</a>
+    {% if puede_editar %}
+        <a href="{{ url_for('productos.crear') }}" class="boton boton-principal">+ Nuevo producto</a>
+    {% endif %}
+{% endblock %}
+
+{% block cuerpo %}
+
+{# --- Barra de filtros ---------------------------------------------------
+   method="get" hace que los filtros viajen en la URL. Así el resultado se
+   puede compartir o guardar en marcadores, y recargar la página no reenvía
+   ningún dato. Para consultar siempre se usa GET; POST se reserva para
+   modificar. #}
+<form method="get" class="filtros">
+    <input type="search" name="busqueda" class="entrada filtro-busqueda"
+           placeholder="Buscar por nombre o referencia..."
+           value="{{ filtros.busqueda }}">
+
+    <select name="categoria" class="entrada">
+        <option value="0">Todas las categorías</option>
+        {% for c in categorias %}
+            {# selected marca la opción que el usuario tenía elegida, para que
+               el filtro no se pierda al recargar. #}
+            <option value="{{ c.id }}" {% if filtros.categoria == c.id %}selected{% endif %}>
+                {{ c.nombre }}
+            </option>
+        {% endfor %}
+    </select>
+
+    <select name="estado" class="entrada">
+        <option value="activos"   {% if filtros.estado == 'activos'   %}selected{% endif %}>Solo activos</option>
+        <option value="inactivos" {% if filtros.estado == 'inactivos' %}selected{% endif %}>Solo de baja</option>
+        <option value="todos"     {% if filtros.estado == 'todos'     %}selected{% endif %}>Todos</option>
+    </select>
+
+    <select name="alerta" class="entrada">
+        <option value=""           {% if filtros.alerta == ''           %}selected{% endif %}>Cualquier stock</option>
+        <option value="stock_bajo" {% if filtros.alerta == 'stock_bajo' %}selected{% endif %}>Stock bajo mínimo</option>
+        <option value="sin_stock"  {% if filtros.alerta == 'sin_stock'  %}selected{% endif %}>Sin stock</option>
+    </select>
+
+    <select name="orden" class="entrada">
+        <option value="nombre"      {% if filtros.orden == 'nombre'      %}selected{% endif %}>Nombre (A-Z)</option>
+        <option value="referencia"  {% if filtros.orden == 'referencia'  %}selected{% endif %}>Referencia</option>
+        <option value="precio_desc" {% if filtros.orden == 'precio_desc' %}selected{% endif %}>Precio (mayor)</option>
+        <option value="precio_asc"  {% if filtros.orden == 'precio_asc'  %}selected{% endif %}>Precio (menor)</option>
+        <option value="stock_asc"   {% if filtros.orden == 'stock_asc'   %}selected{% endif %}>Stock (menor)</option>
+        <option value="recientes"   {% if filtros.orden == 'recientes'   %}selected{% endif %}>Más recientes</option>
+    </select>
+
+    <button type="submit" class="boton boton-principal">Filtrar</button>
+    <a href="{{ url_for('productos.listar') }}" class="boton">Limpiar</a>
+</form>
+
+{# --- Tabla de resultados --------------------------------------------- #}
+<div class="tarjeta">
+    {% if productos %}
+    <div class="tabla-marco">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Referencia</th>
+                    <th>Producto</th>
+                    <th>Categoría</th>
+                    <th class="num">P. venta</th>
+                    {# Las columnas económicas solo existen para quien tiene
+                       permiso. No se ocultan con CSS: directamente no se
+                       generan, así que no aparecen ni en el código fuente. #}
+                    {% if ver_finanzas %}
+                        <th class="num">Coste</th>
+                        <th class="num">Margen</th>
+                    {% endif %}
+                    <th class="num">Stock</th>
+                    <th>Estado</th>
+                    <th class="acciones">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in productos %}
+                <tr>
+                    <td><code class="referencia">{{ p.referencia }}</code></td>
+                    <td>
+                        <a href="{{ url_for('productos.detalle', producto_id=p.id) }}">
+                            <strong>{{ p.nombre }}</strong>
+                        </a>
+                    </td>
+                    <td>{{ p.categoria.nombre }}</td>
+
+                    {# El filtro |euros lo definimos en app/__init__.py: da el
+                       formato español (1.200,00 €) en toda la aplicación. #}
+                    <td class="num">{{ p.precio_venta|euros }}</td>
+
+                    {% if ver_finanzas %}
+                        <td class="num">{{ p.coste_adquisicion|euros }}</td>
+                        <td class="num">
+                            {# Coloreamos el margen según sea negativo, bajo o
+                               correcto. El umbral viene de la configuración
+                               (config.UMBRAL_MARGEN_BAJO), no está escrito a
+                               mano aquí. #}
+                            {% if p.margen_porcentual < 0 %}
+                                {{ etiqueta(p.margen_porcentual|porcentaje, 'peligro') }}
+                            {% elif p.margen_porcentual < config.UMBRAL_MARGEN_BAJO %}
+                                {{ etiqueta(p.margen_porcentual|porcentaje, 'aviso') }}
+                            {% else %}
+                                {{ etiqueta(p.margen_porcentual|porcentaje, 'exito') }}
+                            {% endif %}
+                        </td>
+                    {% endif %}
+
+                    <td class="num">
+                        {# nombre_unidad_venta devuelve "ud." para productos normales
+                           y el nombre de la ración ("caña", "copa"...) para los que se
+                           venden por raciones. #}
+                        {% if p.stock_actual == 0 %}
+                            {{ etiqueta('Sin stock', 'peligro') }}
+                        {% elif p.necesita_reposicion %}
+                            {{ etiqueta(p.stock_actual ~ ' ' ~ p.nombre_unidad_venta, 'aviso') }}
+                        {% else %}
+                            {{ p.stock_actual }} {{ p.nombre_unidad_venta }}
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if p.activo %}
+                            {{ etiqueta('Activo', 'exito') }}
+                        {% else %}
+                            {{ etiqueta('De baja', 'neutro') }}
+                        {% endif %}
+                    </td>
+
+                    <td class="acciones">
+                        <a href="{{ url_for('productos.detalle', producto_id=p.id) }}"
+                           class="boton boton-pequeno">Ver</a>
+                        {% if puede_editar %}
+                            <a href="{{ url_for('productos.editar', producto_id=p.id) }}"
+                               class="boton boton-pequeno">Editar</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {# --- Paginación --------------------------------------------------- #}
+    {% if paginacion.pages > 1 %}
+    <div class="paginacion">
+        {# iter_pages() devuelve los números de página a mostrar, insertando
+           None donde hay un salto (1 2 3 ... 8 9 10). Así la barra no crece
+           sin control cuando hay cientos de páginas. #}
+        {% for numero in paginacion.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
+            {% if numero %}
+                {# Arrastramos todos los filtros en el enlace: si no, al pasar
+                   de página se perderían y volvería el listado completo. #}
+                <a href="{{ url_for('productos.listar', pagina=numero,
+                                    busqueda=filtros.busqueda, categoria=filtros.categoria,
+                                    estado=filtros.estado, alerta=filtros.alerta,
+                                    orden=filtros.orden) }}"
+                   class="pagina {% if numero == paginacion.page %}activa{% endif %}">{{ numero }}</a>
+            {% else %}
+                <span class="pagina-salto">…</span>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    {# --- Estado vacío ------------------------------------------------- #}
+    <div class="vacio">
+        <span class="vacio-icono">📦</span>
+        <p><strong>No hay productos que coincidan con los filtros.</strong></p>
+        <p class="texto-tenue">Prueba a limpiar la búsqueda o crea un producto nuevo.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
